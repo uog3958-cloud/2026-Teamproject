@@ -13,6 +13,7 @@ const STYLE_OPTIONS = [
 const App: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>(ARTICLES_DATA);
   const [catIdx, setCatIdx] = useState(0);
+  const [view, setView] = useState<'home' | 'paper'>('home'); // 화면 전환 상태
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -169,6 +170,7 @@ const App: React.FC = () => {
 
       setForm({ title: '', body: '', source: '', imageStyle: 'photo' });
       setIsEditorOpen(false);
+      setView('paper'); // 생성 후 지면으로 이동
     } catch (error) {
       console.error("Article Generation Failed:", error);
       alert("기사 생성 중 오류가 발생했습니다.");
@@ -242,7 +244,72 @@ const App: React.FC = () => {
     return rotate;
   };
 
-  const renderNewspaperContent = () => (
+  const HomeView: React.FC = () => {
+    // 홈 화면 데이터 구성 (각 카테고리별 첫 기사들 위주)
+    const featuredArticles = articles.slice(0, 10);
+    const heroArticle = articles[0];
+    const gridArticles = articles.slice(1, 9);
+
+    return (
+      <div className="flex-grow overflow-y-auto bg-white custom-scroll">
+        <div className="max-w-6xl mx-auto px-8 py-10">
+          {/* 히어로 섹션 */}
+          <section className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-16">
+            <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
+              const idx = CATEGORIES.indexOf(heroArticle.category);
+              setCatIdx(idx >= 0 ? idx : 0);
+              setView('paper');
+            }}>
+              <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200">
+                <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
+                <span className="absolute top-4 left-4 bg-black text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest">{heroArticle.category}</span>
+              </div>
+              <h2 className="text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
+              <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
+            </div>
+            
+            <aside className="border-l border-gray-200 pl-10 hidden lg:block">
+              <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-6">가장 많이 본 기사</h3>
+              <div className="space-y-6">
+                {articles.slice(5, 10).map((a, i) => (
+                  <div key={i} className="cursor-pointer group" onClick={() => {
+                    const idx = CATEGORIES.indexOf(a.category);
+                    setCatIdx(idx >= 0 ? idx : 0);
+                    setView('paper');
+                  }}>
+                    <span className="text-2xl font-black text-gray-200 italic mr-2 group-hover:text-black transition-colors">{i+1}</span>
+                    <h4 className="inline text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </section>
+
+          {/* 그리드 섹션 */}
+          <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-8">오늘의 주요 뉴스</h3>
+          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {gridArticles.map((a, i) => (
+              <div key={i} className="cursor-pointer group" onClick={() => {
+                const idx = CATEGORIES.indexOf(a.category);
+                setCatIdx(idx >= 0 ? idx : 0);
+                setView('paper');
+              }}>
+                <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200">
+                  <img src={a.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110" alt="" />
+                </div>
+                <div className="flex items-center gap-2 mb-1">
+                   <span className="text-[9px] font-black text-white bg-black/70 px-1.5 uppercase">{a.category}</span>
+                </div>
+                <h4 className="text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
+              </div>
+            ))}
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderSharedNav = () => (
     <>
       <div className={`panel-overlay ${isEditorOpen ? 'open' : ''}`} onClick={() => !isGenerating && setIsEditorOpen(false)}></div>
       <aside className={`slide-panel flex flex-col ${isEditorOpen ? 'open' : ''}`}>
@@ -291,9 +358,17 @@ const App: React.FC = () => {
       </aside>
 
       <header className="bg-white border-b-4 border-black px-8 py-6 flex flex-col items-center shrink-0 z-50">
-        <h1 className="text-4xl font-black tracking-tighter serif-font uppercase mb-1">AI 데일리 신문</h1>
+        <h1 
+          className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity"
+          onClick={() => setView('home')}
+        >
+          AI 데일리 신문
+        </h1>
         <div className="w-full max-w-6xl flex justify-between items-center border-t border-black pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700">
-          <span>제 2025-0520호</span>
+          <div className="flex gap-4">
+             <button onClick={() => setView('home')} className={`hover:text-black transition-colors ${view === 'home' ? 'text-black underline' : 'text-gray-400'}`}>HOME</button>
+             <span>제 2025-0520호</span>
+          </div>
           <span className="text-sm font-black tracking-normal serif-font">{today}</span>
           <span>THE INTELLIGENT DAILY POST</span>
         </div>
@@ -313,33 +388,45 @@ const App: React.FC = () => {
             
             <div className="flex justify-center gap-6 overflow-x-auto no-scrollbar">
               {CATEGORIES.map((cat, idx) => (
-                <button key={cat} onClick={() => !isGenerating && setCatIdx(idx)} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}>{cat}</button>
+                <button 
+                  key={cat} 
+                  onClick={() => {
+                    if (!isGenerating) {
+                      setCatIdx(idx);
+                      setView('paper');
+                    }
+                  }} 
+                  className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx && view === 'paper' ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}
+                >
+                  {cat}
+                </button>
               ))}
             </div>
           </div>
           <button onClick={() => setIsEditorOpen(true)} className="bg-black text-white px-4 py-1.5 text-[10px] font-black uppercase hover:bg-gray-800 transition-colors">새로운 기사 쓰기</button>
         </div>
       </nav>
+    </>
+  );
 
-      <div className="flex-grow stage relative">
-        <div className="newspaper-container">
-          <div className="central-crease"></div>
-          {dragInfo.active && (
-            <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
-              <div className="w-full h-full bg-[#fdfcf9] opacity-40 border-x border-gray-300"></div>
-            </div>
-          )}
-          <div className="page page-left custom-scroll">
-            <ArticleView article={currentSpread[0]} />
-            {catIdx > 0 && <div className="hotzone hotzone-left" onPointerDown={(e) => onPointerDown(e, 'prev')}><div className="fold-marker"></div></div>}
+  const NewspaperView = () => (
+    <div className="flex-grow stage relative">
+      <div className="newspaper-container">
+        <div className="central-crease"></div>
+        {dragInfo.active && (
+          <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
+            <div className="w-full h-full bg-[#fdfcf9] opacity-40 border-x border-gray-300"></div>
           </div>
-          <div className="page page-right custom-scroll">
-            <ArticleView article={currentSpread[1]} />
-            {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
-          </div>
+        )}
+        <div className="page page-left custom-scroll">
+          <ArticleView article={currentSpread[0]} />
+          {catIdx > 0 && <div className="hotzone hotzone-left" onPointerDown={(e) => onPointerDown(e, 'prev')}><div className="fold-marker"></div></div>}
+        </div>
+        <div className="page page-right custom-scroll">
+          <ArticleView article={currentSpread[1]} />
+          {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
         </div>
       </div>
-
       {isGenerating && (
         <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
           <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
@@ -348,15 +435,22 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 
   const LENS_SIZE = 220;
   const ZOOM = 1.8;
 
+  const MainLayout = () => (
+    <div className="flex flex-col h-screen overflow-hidden bg-[#d1d5db]">
+      {renderSharedNav()}
+      {view === 'home' ? <HomeView /> : <NewspaperView />}
+    </div>
+  );
+
   return (
     <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
-      {renderNewspaperContent()}
+      <MainLayout />
 
       {/* 돋보기 렌즈 오버레이 */}
       {isMagnifierOn && (
@@ -376,13 +470,12 @@ const App: React.FC = () => {
               width: '100vw',
               height: '100vh',
               transformOrigin: 'top left',
-              // 렌즈 중심이 마우스 위치와 일치하도록 계산
               transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`,
               pointerEvents: 'none',
               userSelect: 'none'
             }}
           >
-            {renderNewspaperContent()}
+            <MainLayout />
           </div>
         </div>
       )}
