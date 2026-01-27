@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { CATEGORIES, Article } from './types.ts';
-import { ARTICLES_DATA } from './constants.ts';
+import { CATEGORIES, Article } from './types';
+import { ARTICLES_DATA } from './constants';
 import { GoogleGenAI } from "@google/genai";
 
 const App: React.FC = () => {
@@ -30,12 +30,12 @@ const App: React.FC = () => {
 
   const currentCategory = CATEGORIES[catIdx];
   const currentSpread = useMemo(() => {
-    return articles.filter(a => a.category === currentCategory).slice(0, 2);
+    const filtered = articles.filter(a => a.category === currentCategory);
+    return [filtered[0], filtered[1]];
   }, [articles, currentCategory]);
 
   const cleanText = (text: string) => {
     if (typeof text !== 'string') return '';
-    // 줄바꿈 제거, 연속 공백 제거, 앞뒤 공백 제거
     return text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
   };
 
@@ -99,7 +99,7 @@ const App: React.FC = () => {
       if (!generatedData) {
         const fallbackResponse = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: `다음 내용을 바탕으로 기사 헤드라인 1개와 150자 이내의 요약 문단 1개를 작성하세요 (줄바꿈 금지): ${form.body}`,
+          contents: `다음 내용을 바탕으로 기사 헤드라인 1개와 150자 이내의 요약 문단 1개를 작성하세요 (줄바꿈 없이): ${form.body}`,
         });
         
         const fallbackText = cleanText(fallbackResponse.text || '');
@@ -146,10 +146,10 @@ const App: React.FC = () => {
       };
 
       setArticles(prev => {
-        const otherArticlesInOtherCats = prev.filter(a => a.category !== currentCategory);
-        const articlesInSameCat = prev.filter(a => a.category === currentCategory);
-        // 최신 기사를 가장 앞에 두고 나머지는 뒤로 밀기 (최대 2개 유지)
-        return [newArticle, ...articlesInSameCat, ...otherArticlesInOtherCats];
+        // 해당 카테고리의 기존 기사를 한 칸씩 밀어냄
+        const otherCategories = prev.filter(a => a.category !== currentCategory);
+        const sameCategory = prev.filter(a => a.category === currentCategory);
+        return [newArticle, ...sameCategory, ...otherCategories];
       });
 
       setForm({ title: '', body: '', source: '' });
