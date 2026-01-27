@@ -1,0 +1,5 @@
+{
+  "name": "AI 데일리 신문 인터랙티브 뷰어",
+  "description": "신문 형태의 레이아웃을 가진 인터랙티브 기사 뷰어 데모입니다.",
+  "requestFramePermissions": []
+}
