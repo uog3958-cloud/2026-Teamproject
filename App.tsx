@@ -1,7 +1,6 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
-import { CATEGORIES, Article } from './types';
-import { ARTICLES_DATA } from './constants';
+import { CATEGORIES, Article } from './types.ts';
+import { ARTICLES_DATA } from './constants.ts';
 import { GoogleGenAI } from "@google/genai";
 
 const App: React.FC = () => {
@@ -36,7 +35,8 @@ const App: React.FC = () => {
 
   const cleanText = (text: string) => {
     if (typeof text !== 'string') return '';
-    return text.trim().replace(/\s+/g, ' ');
+    // 줄바꿈 제거, 연속 공백 제거, 앞뒤 공백 제거
+    return text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -46,7 +46,6 @@ const App: React.FC = () => {
     setIsGenerating(true);
 
     try {
-      // Create new instance before API call to ensure latest configuration
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       let generatedData: any = null;
@@ -84,7 +83,6 @@ const App: React.FC = () => {
           }
         });
 
-        // Use .text property directly as per guidelines
         const rawText = textResponse.text;
         if (!rawText) throw new Error("Empty response from AI");
 
@@ -99,16 +97,15 @@ const App: React.FC = () => {
       }
 
       if (!generatedData) {
-        // Fallback: Use gemini-3-flash-preview for a direct summary if JSON structured output fails
         const fallbackResponse = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
-          contents: `다음 내용을 바탕으로 기사 헤드라인 1개와 150자 이내의 요약 문단 1개를 작성하세요: ${form.body}`,
+          contents: `다음 내용을 바탕으로 기사 헤드라인 1개와 150자 이내의 요약 문단 1개를 작성하세요 (줄바꿈 금지): ${form.body}`,
         });
         
-        const fallbackText = fallbackResponse.text || '';
+        const fallbackText = cleanText(fallbackResponse.text || '');
         generatedData = {
           title: form.title,
-          shortBody: cleanText(fallbackText).slice(0, 200),
+          shortBody: fallbackText.slice(0, 200),
           image: {
             prompt: `Professional high-quality journalistic photograph about ${form.title}`,
             alt: form.title
@@ -117,7 +114,6 @@ const App: React.FC = () => {
         };
       }
 
-      // Default image generation using gemini-2.5-flash-image
       const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -128,7 +124,6 @@ const App: React.FC = () => {
       let generatedImageUrl = '';
       if (imageResponse.candidates?.[0]?.content?.parts) {
         for (const part of imageResponse.candidates[0].content.parts) {
-          // Find the image part in response
           if (part.inlineData) {
             generatedImageUrl = `data:image/png;base64,${part.inlineData.data}`;
             break;
@@ -151,9 +146,10 @@ const App: React.FC = () => {
       };
 
       setArticles(prev => {
-        // Keep current page content updated by prepending and optionally trimming old data for the category
-        const filtered = prev.filter(a => !(a.category === currentCategory && prev.filter(p => p.category === currentCategory).indexOf(a) >= 1));
-        return [newArticle, ...filtered];
+        const otherArticlesInOtherCats = prev.filter(a => a.category !== currentCategory);
+        const articlesInSameCat = prev.filter(a => a.category === currentCategory);
+        // 최신 기사를 가장 앞에 두고 나머지는 뒤로 밀기 (최대 2개 유지)
+        return [newArticle, ...articlesInSameCat, ...otherArticlesInOtherCats];
       });
 
       setForm({ title: '', body: '', source: '' });
