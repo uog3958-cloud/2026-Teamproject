@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CATEGORIES, Article } from './types';
 import { ARTICLES_DATA } from './constants';
 import { GoogleGenAI } from "@google/genai";
@@ -17,6 +17,10 @@ const App: React.FC = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // 돋보기 모드 상태
+  const [isMagnifierOn, setIsMagnifierOn] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+
   const [dragInfo, setDragInfo] = useState<{
     active: boolean;
     startX: number;
@@ -28,7 +32,7 @@ const App: React.FC = () => {
     title: '',
     body: '',
     source: '',
-    imageStyle: 'photo' // 이미지 스타일 상태 (문자열)
+    imageStyle: 'photo'
   });
 
   const today = useMemo(() => {
@@ -122,7 +126,6 @@ const App: React.FC = () => {
         };
       }
 
-      // 선택된 이미지 스타일에 따른 키워드 추가
       const selectedStyle = STYLE_OPTIONS.find(opt => opt.value === form.imageStyle);
       const styleKeywords = selectedStyle ? selectedStyle.keywords : STYLE_OPTIONS[0].keywords;
       const enhancedImagePrompt = `${generatedData.image.prompt}. Style keywords: ${styleKeywords}`;
@@ -181,6 +184,11 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
+      // 돋보기 위치 업데이트
+      if (isMagnifierOn) {
+        setMousePos({ x: e.clientX, y: e.clientY });
+      }
+
       if (!dragInfo.active) return;
       setDragInfo(prev => ({ ...prev, currentX: e.clientX }));
     };
@@ -210,13 +218,19 @@ const App: React.FC = () => {
       }
     };
 
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMagnifierOn(false);
+    };
+
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('keydown', onKeyDown);
     };
-  }, [dragInfo, catIdx, isAnimating]);
+  }, [dragInfo, catIdx, isAnimating, isMagnifierOn]);
 
   const getRotation = () => {
     if (!dragInfo.active) return 0;
@@ -228,8 +242,8 @@ const App: React.FC = () => {
     return rotate;
   };
 
-  return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#d1d5db]">
+  const renderNewspaperContent = () => (
+    <>
       <div className={`panel-overlay ${isEditorOpen ? 'open' : ''}`} onClick={() => !isGenerating && setIsEditorOpen(false)}></div>
       <aside className={`slide-panel flex flex-col ${isEditorOpen ? 'open' : ''}`}>
         <div className="p-6 h-full flex flex-col">
@@ -247,7 +261,6 @@ const App: React.FC = () => {
               <input type="text" value={form.source} onChange={e => setForm({...form, source: e.target.value})} className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50" placeholder="예: 과학동아" disabled={isGenerating} />
             </div>
             
-            {/* 이미지 스타일 선택 UI 추가 */}
             <div>
               <label className="block text-[10px] font-black uppercase mb-1">이미지 스타일 ▽</label>
               <select 
@@ -288,10 +301,21 @@ const App: React.FC = () => {
 
       <nav className="bg-white border-b border-black shrink-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-8 py-2">
-          <div className="flex justify-center gap-6 overflow-x-auto no-scrollbar">
-            {CATEGORIES.map((cat, idx) => (
-              <button key={cat} onClick={() => !isGenerating && setCatIdx(idx)} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}>{cat}</button>
-            ))}
+          <div className="flex items-center gap-4">
+            {/* 돋보기 모드 토글 버튼 */}
+            <button 
+              onClick={() => setIsMagnifierOn(!isMagnifierOn)} 
+              className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'bg-black text-white border-black shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`}
+              title="돋보기 모드 (Esc로 해제)"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </button>
+            
+            <div className="flex justify-center gap-6 overflow-x-auto no-scrollbar">
+              {CATEGORIES.map((cat, idx) => (
+                <button key={cat} onClick={() => !isGenerating && setCatIdx(idx)} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}>{cat}</button>
+              ))}
+            </div>
           </div>
           <button onClick={() => setIsEditorOpen(true)} className="bg-black text-white px-4 py-1.5 text-[10px] font-black uppercase hover:bg-gray-800 transition-colors">새로운 기사 쓰기</button>
         </div>
@@ -324,6 +348,44 @@ const App: React.FC = () => {
           </div>
         </div>
       )}
+    </>
+  );
+
+  const LENS_SIZE = 220;
+  const ZOOM = 1.8;
+
+  return (
+    <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
+      {renderNewspaperContent()}
+
+      {/* 돋보기 렌즈 오버레이 */}
+      {isMagnifierOn && (
+        <div 
+          className="fixed rounded-full pointer-events-none border-4 border-gray-500 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[9999]"
+          style={{
+            width: `${LENS_SIZE}px`,
+            height: `${LENS_SIZE}px`,
+            left: `${mousePos.x - LENS_SIZE / 2}px`,
+            top: `${mousePos.y - LENS_SIZE / 2}px`,
+          }}
+        >
+          {/* 렌즈 내부 확대 내용 (동일한 UI를 복제하여 transform 적용) */}
+          <div 
+            className="absolute bg-[#d1d5db]"
+            style={{
+              width: '100vw',
+              height: '100vh',
+              transformOrigin: 'top left',
+              // 렌즈 중심이 마우스 위치와 일치하도록 계산
+              transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`,
+              pointerEvents: 'none',
+              userSelect: 'none'
+            }}
+          >
+            {renderNewspaperContent()}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -344,13 +406,19 @@ const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
 
       <h3 className="text-3xl font-black serif-font mb-6 leading-tight break-keep">{renderTitle}</h3>
 
-      <div className="w-full bg-gray-200 border border-gray-300 mb-6 relative overflow-hidden grayscale-[50%] hover:grayscale-0 transition-all duration-700">
+      <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20">
         {article.imageUrl ? (
-          <img src={article.imageUrl} alt={renderImageAlt} className="w-full aspect-[16/10] object-cover" />
+          <img 
+            src={article.imageUrl} 
+            alt={renderImageAlt} 
+            className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.2] group-hover:shadow-2xl z-10" 
+          />
         ) : (
-          <div className="aspect-[16/10] bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>
+          <div className="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>
         )}
-        <div className="bg-white/90 p-2 text-[9px] italic border-t border-gray-200">[사진] {renderImageAlt}</div>
+        <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">
+          [사진] {renderImageAlt}
+        </div>
       </div>
 
       <div className="flex-grow">
