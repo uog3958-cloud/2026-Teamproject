@@ -3,6 +3,13 @@ import { CATEGORIES, Article } from './types';
 import { ARTICLES_DATA } from './constants';
 import { GoogleGenAI } from "@google/genai";
 
+const STYLE_OPTIONS = [
+  { label: '실사 뉴스 (기본값)', value: 'photo', keywords: 'photojournalism, realistic lighting, news photography, documentary style' },
+  { label: '카툰 / 일러스트', value: 'cartoon', keywords: 'editorial illustration, cartoon style, clean line art, newspaper illustration' },
+  { label: '인포그래픽', value: 'infographic', keywords: 'infographic, flat design, data visualization, minimal icons' },
+  { label: '상징적 콘셉트 이미지', value: 'concept', keywords: 'conceptual art, symbolic representation, metaphorical scene, abstract but clear meaning' }
+];
+
 const App: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>(ARTICLES_DATA);
   const [catIdx, setCatIdx] = useState(0);
@@ -20,7 +27,8 @@ const App: React.FC = () => {
   const [form, setForm] = useState({
     title: '',
     body: '',
-    source: ''
+    source: '',
+    imageStyle: 'photo' // 이미지 스타일 상태 (문자열)
   });
 
   const today = useMemo(() => {
@@ -114,10 +122,15 @@ const App: React.FC = () => {
         };
       }
 
+      // 선택된 이미지 스타일에 따른 키워드 추가
+      const selectedStyle = STYLE_OPTIONS.find(opt => opt.value === form.imageStyle);
+      const styleKeywords = selectedStyle ? selectedStyle.keywords : STYLE_OPTIONS[0].keywords;
+      const enhancedImagePrompt = `${generatedData.image.prompt}. Style keywords: ${styleKeywords}`;
+
       const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
-          parts: [{ text: generatedData.image.prompt }]
+          parts: [{ text: enhancedImagePrompt }]
         }
       });
 
@@ -146,13 +159,12 @@ const App: React.FC = () => {
       };
 
       setArticles(prev => {
-        // 해당 카테고리의 기존 기사를 한 칸씩 밀어냄
         const otherCategories = prev.filter(a => a.category !== currentCategory);
         const sameCategory = prev.filter(a => a.category === currentCategory);
         return [newArticle, ...sameCategory, ...otherCategories];
       });
 
-      setForm({ title: '', body: '', source: '' });
+      setForm({ title: '', body: '', source: '', imageStyle: 'photo' });
       setIsEditorOpen(false);
     } catch (error) {
       console.error("Article Generation Failed:", error);
@@ -234,6 +246,22 @@ const App: React.FC = () => {
               <label className="block text-[10px] font-black uppercase mb-1">출처</label>
               <input type="text" value={form.source} onChange={e => setForm({...form, source: e.target.value})} className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50" placeholder="예: 과학동아" disabled={isGenerating} />
             </div>
+            
+            {/* 이미지 스타일 선택 UI 추가 */}
+            <div>
+              <label className="block text-[10px] font-black uppercase mb-1">이미지 스타일 ▽</label>
+              <select 
+                value={form.imageStyle} 
+                onChange={e => setForm({...form, imageStyle: e.target.value})} 
+                className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 bg-white"
+                disabled={isGenerating}
+              >
+                {STYLE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+
             <div className="flex-grow flex flex-col">
               <label className="block text-[10px] font-black uppercase mb-1">기사 내용</label>
               <textarea value={form.body} onChange={e => setForm({...form, body: e.target.value})} className="w-full flex-grow border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 resize-none custom-scroll" placeholder="내용을 입력하세요." disabled={isGenerating} />
