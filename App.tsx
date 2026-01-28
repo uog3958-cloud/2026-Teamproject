@@ -52,7 +52,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
   const gridArticles = articles.slice(1, 9);
 
   return (
-    <div className="flex-grow overflow-y-auto bg-white custom-scroll">
+    <div className="flex-grow overflow-y-auto bg-white custom-scroll transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-8 py-10">
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-16">
           <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
@@ -60,7 +60,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
             setCatIdx(idx >= 0 ? idx : 0);
             setView('paper');
           }}>
-            <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200">
+            <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200 transition-colors duration-300">
               <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
               <span className="absolute top-4 left-4 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: ACCENT_COLOR }}>{heroArticle.category}</span>
             </div>
@@ -68,7 +68,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
             <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
           </div>
           
-          <aside className="border-l border-gray-200 pl-10 hidden lg:block">
+          <aside className="border-l border-gray-200 pl-10 hidden lg:block transition-colors duration-300">
             <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-6">가장 많이 본 기사</h3>
             <div className="space-y-6">
               {articles.slice(5, 10).map((a, i) => (
@@ -93,7 +93,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
               setCatIdx(idx >= 0 ? idx : 0);
               setView('paper');
             }}>
-              <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200">
+              <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200 transition-colors duration-300">
                 <img src={a.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110" alt="" />
               </div>
               <div className="flex items-center gap-2 mb-1">
@@ -127,7 +127,7 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
       <div className="central-crease"></div>
       {dragInfo.active && (
         <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
-          <div className="w-full h-full bg-[#fdfcf9] opacity-40 border-x border-gray-300"></div>
+          <div className="w-full h-full opacity-40 border-x border-gray-300"></div>
         </div>
       )}
       <div className="page page-left custom-scroll">
@@ -157,6 +157,7 @@ const App: React.FC = () => {
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
   
   const [isMagnifierOn, setIsMagnifierOn] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -175,6 +176,11 @@ const App: React.FC = () => {
     source: '',
     imageStyle: 'photo'
   });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
 
   const todaysFocus = useMemo(() => {
     const mainArticle = articles[0];
@@ -196,6 +202,8 @@ const App: React.FC = () => {
     if (typeof text !== 'string') return '';
     return text.replace(/[\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
   };
+
+  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -440,9 +448,17 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="bg-white border-b-4 px-8 py-4 flex flex-col items-center shrink-0 z-50" style={{ borderBottomColor: ACCENT_COLOR }}>
-        <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1">
+      <header className="bg-white border-b-4 px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
+        <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1 transition-colors duration-300">
           <div className="flex items-center gap-2 overflow-hidden">
+            <button 
+              onClick={toggleTheme}
+              className="flex items-center gap-2 px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 transition-colors duration-200 focus:outline-none"
+              title={theme === 'light' ? '다크 모드로 전환' : '라이트 모드로 전환'}
+            >
+              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: theme === 'dark' ? '#F8FAFC' : '#1a1a1a' }}></div>
+              <span className="text-[10px] font-bold">바탕색전환</span>
+            </button>
             <span className="text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0" style={{ backgroundColor: ACCENT_COLOR }}>TODAY'S FOCUS</span>
             <span className="serif-font italic text-gray-700 truncate">“{todaysFocus}”</span>
           </div>
@@ -451,7 +467,7 @@ const App: React.FC = () => {
         <h1 className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
           동아 일분
         </h1>
-        <div className="w-full max-w-6xl flex justify-between items-center border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700 relative" style={{ borderTopColor: ACCENT_COLOR }}>
+        <div className="w-full max-w-6xl flex justify-between items-center border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700 relative transition-colors duration-300" style={{ borderTopColor: ACCENT_COLOR }}>
           <div className="flex gap-4">
              <button onClick={() => setView('home')} className={`hover:opacity-70 transition-colors ${view === 'home' ? 'underline' : 'text-gray-400'}`} style={{ color: view === 'home' ? ACCENT_COLOR : undefined }}>HOME</button>
              <span>제 2025-0520호</span>
@@ -461,7 +477,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <nav className="bg-white border-b border-black shrink-0 z-40">
+      <nav className="bg-white border-b border-black shrink-0 z-40 transition-colors duration-300">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-8 py-2">
           <div className="flex items-center gap-4">
             <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
@@ -486,7 +502,7 @@ const App: React.FC = () => {
 
   // MainLayout을 컴포넌트가 아닌 JSX 반환 함수로 정의하여 포커스 상실 방지
   const renderMainLayout = () => (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#d1d5db]">
+    <div className="flex flex-col h-screen overflow-hidden bg-[#d1d5db] transition-colors duration-300">
       {renderSharedNav()}
       {view === 'home' ? (
         <HomeView articles={articles} setCatIdx={setCatIdx} setView={setView} />
@@ -500,9 +516,23 @@ const App: React.FC = () => {
     <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
       {renderMainLayout()}
       {isMagnifierOn && (
-        <div className="fixed rounded-full pointer-events-none border-4 border-gray-500 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[9999]" style={{ width: `${LENS_SIZE}px`, height: `${LENS_SIZE}px`, left: `${mousePos.x - LENS_SIZE / 2}px`, top: `${mousePos.y - LENS_SIZE / 2}px` }}>
-          <div className="absolute bg-[#d1d5db]" style={{ width: '100vw', height: '100vh', transformOrigin: 'top left', transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`, pointerEvents: 'none', userSelect: 'none' }}>
-            {renderMainLayout()}
+        <div 
+          className="fixed pointer-events-none z-[9999]" 
+          style={{ 
+            width: `${LENS_SIZE}px`, 
+            height: `${LENS_SIZE}px`, 
+            left: `${mousePos.x - LENS_SIZE / 2}px`, 
+            top: `${mousePos.y - LENS_SIZE / 2}px` 
+          }}
+        >
+          {/* Magnifying Glass Handle */}
+          <div className="magnifier-handle"></div>
+          
+          {/* Magnifying Glass Lens Frame */}
+          <div className="magnifier-glass">
+            <div className="absolute bg-[#d1d5db]" style={{ width: '100vw', height: '100vh', transformOrigin: 'top left', transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`, pointerEvents: 'none', userSelect: 'none' }}>
+              {renderMainLayout()}
+            </div>
           </div>
         </div>
       )}
@@ -514,19 +544,19 @@ const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
   if (!article) return <div className="p-10 text-center italic text-gray-400 serif-font">지면이 비어 있습니다.</div>;
   return (
     <article className="flex flex-col h-full max-w-xl mx-auto">
-      <div className="flex items-center justify-between border-b border-black mb-6 pb-1">
+      <div className="flex items-center justify-between border-b border-black mb-6 pb-1 transition-colors duration-300">
         <span className="text-[10px] font-black text-white px-2 py-0.5 tracking-widest uppercase" style={{ backgroundColor: ACCENT_COLOR }}>{article.category}</span>
         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">AI DAILY SPECIAL</span>
       </div>
       <h3 className="text-3xl font-black serif-font mb-6 leading-tight break-keep">{article.title}</h3>
-      <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20">
+      <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20 transition-colors duration-300">
         {article.imageUrl ? <img src={article.imageUrl} alt={article.imageAlt} className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-[1.2] group-hover:shadow-2xl z-10" /> : <div className="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>}
         <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">[사진] {article.imageAlt}</div>
       </div>
       <div className="flex-grow">
         <div className="text-sm leading-[1.8] text-gray-800 text-justify serif-font"><p className="indent-4">{article.shortBody}</p></div>
       </div>
-      <div className="mt-10 pt-4 border-t border-dotted border-gray-400">
+      <div className="mt-10 pt-4 border-t border-dotted border-gray-400 transition-colors duration-300">
         <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">출처: {article.sourceName || '익명'}</span>
       </div>
     </article>
