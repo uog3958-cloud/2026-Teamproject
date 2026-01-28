@@ -10,36 +10,10 @@ const STYLE_OPTIONS = [
   { label: '상징적 콘셉트 이미지', value: 'concept', keywords: 'conceptual art, symbolic representation, metaphorical scene, abstract but clear meaning' }
 ];
 
-const App: React.FC = () => {
-  const [articles, setArticles] = useState<Article[]>(ARTICLES_DATA);
-  const [catIdx, setCatIdx] = useState(0);
-  const [view, setView] = useState<'home' | 'paper'>('home'); // 화면 전환 상태
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  
-  // 실시간 시간 상태
+// 1. 실시간 시계 컴포넌트 분리 (App 전체 리렌더링 방지)
+const TimeDisplay: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
-  
-  // 돋보기 모드 상태
-  const [isMagnifierOn, setIsMagnifierOn] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
-  const [dragInfo, setDragInfo] = useState<{
-    active: boolean;
-    startX: number;
-    currentX: number;
-    direction: 'next' | 'prev' | null;
-  }>({ active: false, startX: 0, currentX: 0, direction: null });
-
-  const [form, setForm] = useState({
-    title: '',
-    body: '',
-    source: '',
-    imageStyle: 'photo'
-  });
-
-  // 실시간 시간 업데이트 (1초 단위)
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -57,6 +31,149 @@ const App: React.FC = () => {
     return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${dayOfWeek}) ${hours}:${minutes}:${seconds}`;
   }, [currentTime]);
 
+  return (
+    <div className="serif-font font-black text-gray-900 flex-shrink-0 ml-4 text-lg">
+      {formattedTime}
+    </div>
+  );
+};
+
+// 2. 홈 화면 컴포넌트 추출
+interface HomeViewProps {
+  articles: Article[];
+  setCatIdx: (idx: number) => void;
+  setView: (view: 'home' | 'paper') => void;
+}
+
+const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => {
+  const heroArticle = articles[0];
+  const gridArticles = articles.slice(1, 9);
+
+  return (
+    <div className="flex-grow overflow-y-auto bg-white custom-scroll">
+      <div className="max-w-6xl mx-auto px-8 py-10">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-16">
+          <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
+            const idx = CATEGORIES.indexOf(heroArticle.category);
+            setCatIdx(idx >= 0 ? idx : 0);
+            setView('paper');
+          }}>
+            <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200">
+              <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
+              <span className="absolute top-4 left-4 bg-black text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest">{heroArticle.category}</span>
+            </div>
+            <h2 className="text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
+            <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
+          </div>
+          
+          <aside className="border-l border-gray-200 pl-10 hidden lg:block">
+            <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-6">가장 많이 본 기사</h3>
+            <div className="space-y-6">
+              {articles.slice(5, 10).map((a, i) => (
+                <div key={i} className="cursor-pointer group" onClick={() => {
+                  const idx = CATEGORIES.indexOf(a.category);
+                  setCatIdx(idx >= 0 ? idx : 0);
+                  setView('paper');
+                }}>
+                  <span className="text-2xl font-black text-gray-200 italic mr-2 group-hover:text-black transition-colors">{i+1}</span>
+                  <h4 className="inline text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
+                </div>
+              ))}
+            </div>
+          </aside>
+        </section>
+
+        <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-8">오늘의 주요 뉴스</h3>
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          {gridArticles.map((a, i) => (
+            <div key={i} className="cursor-pointer group" onClick={() => {
+              const idx = CATEGORIES.indexOf(a.category);
+              setCatIdx(idx >= 0 ? idx : 0);
+              setView('paper');
+            }}>
+              <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200">
+                <img src={a.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110" alt="" />
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                 <span className="text-[9px] font-black text-white bg-black/70 px-1.5 uppercase">{a.category}</span>
+              </div>
+              <h4 className="text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  );
+};
+
+// 3. 신문 지면 화면 컴포넌트 추출
+interface NewspaperViewProps {
+  currentSpread: Article[];
+  catIdx: number;
+  dragInfo: any;
+  isAnimating: boolean;
+  getRotation: () => number;
+  onPointerDown: (e: React.PointerEvent, direction: 'next' | 'prev') => void;
+  isGenerating: boolean;
+}
+
+const NewspaperView: React.FC<NewspaperViewProps> = ({ 
+  currentSpread, catIdx, dragInfo, isAnimating, getRotation, onPointerDown, isGenerating 
+}) => (
+  <div className="flex-grow stage relative">
+    <div className="newspaper-container">
+      <div className="central-crease"></div>
+      {dragInfo.active && (
+        <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
+          <div className="w-full h-full bg-[#fdfcf9] opacity-40 border-x border-gray-300"></div>
+        </div>
+      )}
+      <div className="page page-left custom-scroll">
+        <ArticleView article={currentSpread[0]} />
+        {catIdx > 0 && <div className="hotzone hotzone-left" onPointerDown={(e) => onPointerDown(e, 'prev')}><div className="fold-marker"></div></div>}
+      </div>
+      <div className="page page-right custom-scroll">
+        <ArticleView article={currentSpread[1]} />
+        {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
+      </div>
+    </div>
+    {isGenerating && (
+      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
+        <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
+          <div className="w-12 h-12 border-4 border-black border-t-transparent animate-spin mb-4"></div>
+          <p className="serif-font font-black text-lg">기사를 작성하고 있습니다...</p>
+        </div>
+      </div>
+    )}
+  </div>
+);
+
+const App: React.FC = () => {
+  const [articles, setArticles] = useState<Article[]>(ARTICLES_DATA);
+  const [catIdx, setCatIdx] = useState(0);
+  const [view, setView] = useState<'home' | 'paper'>('home');
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  const [isMagnifierOn, setIsMagnifierOn] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const isComposing = useRef(false);
+
+  const [dragInfo, setDragInfo] = useState<{
+    active: boolean;
+    startX: number;
+    currentX: number;
+    direction: 'next' | 'prev' | null;
+  }>({ active: false, startX: 0, currentX: 0, direction: null });
+
+  const [form, setForm] = useState({
+    title: '',
+    body: '',
+    source: '',
+    imageStyle: 'photo'
+  });
+
   const todaysFocus = useMemo(() => {
     const mainArticle = articles[0];
     return mainArticle ? mainArticle.title : "새로운 시대를 여는 AI 데일리 신문";
@@ -65,7 +182,12 @@ const App: React.FC = () => {
   const currentCategory = CATEGORIES[catIdx];
   const currentSpread = useMemo(() => {
     const filtered = articles.filter(a => a.category === currentCategory);
-    return [filtered[0], filtered[1]];
+    
+    // 항상 2개의 슬롯이 채워지도록 보장 (지면이 비지 않게 Fallback 적용)
+    const leftArticle = filtered[0] || ARTICLES_DATA.find(a => a.category === currentCategory) || ARTICLES_DATA[0];
+    const rightArticle = filtered[1] || (filtered[0] ? ARTICLES_DATA.find(a => a.category === currentCategory && a.title !== filtered[0].title) : null) || ARTICLES_DATA[1] || ARTICLES_DATA[0];
+    
+    return [leftArticle, rightArticle];
   }, [articles, currentCategory]);
 
   const cleanText = (text: string) => {
@@ -75,13 +197,17 @@ const App: React.FC = () => {
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title || !form.body) return alert("제목과 본문을 입력해주세요.");
+    
+    const trimmedTitle = form.title.trim();
+    const trimmedBody = form.body.trim();
+    const trimmedSource = form.source.trim();
+
+    if (!trimmedTitle || !trimmedBody) return alert("제목과 본문을 입력해주세요.");
     
     setIsGenerating(true);
 
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
       let generatedData: any = null;
       let retries = 0;
       const MAX_RETRIES = 2;
@@ -95,7 +221,6 @@ const App: React.FC = () => {
           1. "title": 18자~32자 사이의 강렬한 헤드라인.
           2. "shortBody": 띄어쓰기 포함 반드시 200자 이내. 줄바꿈 없이 단일 문단으로 구성.
           3. 원문을 그대로 복사하지 말고 새로운 문장으로 재구성.
-          4. 불필요한 공백이나 특수문자 금지.
           
           반드시 아래 JSON 구조로만 응답하세요:
           {
@@ -108,21 +233,14 @@ const App: React.FC = () => {
             "sourceName": "출처명"
           }
 
-          입력 제목: ${form.title}
-          입력 출처: ${form.source || '익명'}
-          입력 내용: ${form.body}`,
-          config: {
-            responseMimeType: "application/json",
-            temperature: 0.7,
-          }
+          입력 제목: ${trimmedTitle}
+          입력 출처: ${trimmedSource || '익명'}
+          입력 내용: ${trimmedBody}`,
+          config: { responseMimeType: "application/json", temperature: 0.7 }
         });
 
-        const rawText = textResponse.text;
-        if (!rawText) throw new Error("Empty response from AI");
-
-        const parsed = JSON.parse(rawText);
-        const processedBody = cleanText(parsed.shortBody);
-        
+        const parsed = JSON.parse(textResponse.text || '{}');
+        const processedBody = cleanText(parsed.shortBody || '');
         if (processedBody.length <= 200 && processedBody.length > 0) {
           generatedData = { ...parsed, shortBody: processedBody };
           break;
@@ -131,32 +249,20 @@ const App: React.FC = () => {
       }
 
       if (!generatedData) {
-        const fallbackResponse = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: `다음 내용을 바탕으로 기사 헤드라인 1개와 150자 이내의 요약 문단 1개를 작성하세요 (줄바꿈 없이): ${form.body}`,
-        });
-        
-        const fallbackText = cleanText(fallbackResponse.text || '');
         generatedData = {
-          title: form.title,
-          shortBody: fallbackText.slice(0, 200),
-          image: {
-            prompt: `Professional high-quality journalistic photograph about ${form.title}`,
-            alt: form.title
-          },
-          sourceName: form.source || '익명'
+          title: trimmedTitle,
+          shortBody: trimmedBody.slice(0, 200),
+          image: { prompt: `Professional news photo about ${trimmedTitle}`, alt: trimmedTitle },
+          sourceName: trimmedSource || '익명'
         };
       }
 
       const selectedStyle = STYLE_OPTIONS.find(opt => opt.value === form.imageStyle);
-      const styleKeywords = selectedStyle ? selectedStyle.keywords : STYLE_OPTIONS[0].keywords;
-      const enhancedImagePrompt = `${generatedData.image.prompt}. Style keywords: ${styleKeywords}`;
+      const enhancedImagePrompt = `${generatedData.image.prompt}. Style: ${selectedStyle?.keywords}`;
 
       const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: {
-          parts: [{ text: enhancedImagePrompt }]
-        }
+        contents: { parts: [{ text: enhancedImagePrompt }] }
       });
 
       let generatedImageUrl = '';
@@ -184,16 +290,31 @@ const App: React.FC = () => {
       };
 
       setArticles(prev => {
-        const otherCategories = prev.filter(a => a.category !== currentCategory);
         const sameCategory = prev.filter(a => a.category === currentCategory);
-        return [newArticle, ...sameCategory, ...otherCategories];
+        const otherCategories = prev.filter(a => a.category !== currentCategory);
+        
+        // 새 기사 생성 로직 수정: 
+        // 왼쪽(0번) 슬롯만 새 기사로 교체하고, 오른쪽(1번) 슬롯은 기존 데이터를 유지함
+        let updatedSameCategory = [];
+        if (sameCategory.length >= 2) {
+          // 기존에 2개 이상일 때: 왼쪽 교체, 오른쪽 유지
+          updatedSameCategory = [newArticle, sameCategory[1], ...sameCategory.slice(2)];
+        } else if (sameCategory.length === 1) {
+          // 기존에 1개일 때: 새 기사가 왼쪽, 기존 기사가 오른쪽으로 이동
+          updatedSameCategory = [newArticle, sameCategory[0]];
+        } else {
+          // 기존에 없을 때: 새 기사만 (currentSpread에서 Fallback 처리됨)
+          updatedSameCategory = [newArticle];
+        }
+
+        return [...updatedSameCategory, ...otherCategories];
       });
 
       setForm({ title: '', body: '', source: '', imageStyle: 'photo' });
       setIsEditorOpen(false);
-      setView('paper'); // 생성 후 지면으로 이동
+      setView('paper');
     } catch (error) {
-      console.error("Article Generation Failed:", error);
+      console.error(error);
       alert("기사 생성 중 오류가 발생했습니다.");
     } finally {
       setIsGenerating(false);
@@ -207,11 +328,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
-      // 돋보기 위치 업데이트
-      if (isMagnifierOn) {
-        setMousePos({ x: e.clientX, y: e.clientY });
-      }
-
+      if (isMagnifierOn) setMousePos({ x: e.clientX, y: e.clientY });
       if (!dragInfo.active) return;
       setDragInfo(prev => ({ ...prev, currentX: e.clientX }));
     };
@@ -265,69 +382,6 @@ const App: React.FC = () => {
     return rotate;
   };
 
-  const HomeView: React.FC = () => {
-    const heroArticle = articles[0];
-    const gridArticles = articles.slice(1, 9);
-
-    return (
-      <div className="flex-grow overflow-y-auto bg-white custom-scroll">
-        <div className="max-w-6xl mx-auto px-8 py-10">
-          {/* 히어로 섹션 */}
-          <section className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-16">
-            <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
-              const idx = CATEGORIES.indexOf(heroArticle.category);
-              setCatIdx(idx >= 0 ? idx : 0);
-              setView('paper');
-            }}>
-              <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200">
-                <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
-                <span className="absolute top-4 left-4 bg-black text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest">{heroArticle.category}</span>
-              </div>
-              <h2 className="text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
-              <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
-            </div>
-            
-            <aside className="border-l border-gray-200 pl-10 hidden lg:block">
-              <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-6">가장 많이 본 기사</h3>
-              <div className="space-y-6">
-                {articles.slice(5, 10).map((a, i) => (
-                  <div key={i} className="cursor-pointer group" onClick={() => {
-                    const idx = CATEGORIES.indexOf(a.category);
-                    setCatIdx(idx >= 0 ? idx : 0);
-                    setView('paper');
-                  }}>
-                    <span className="text-2xl font-black text-gray-200 italic mr-2 group-hover:text-black transition-colors">{i+1}</span>
-                    <h4 className="inline text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
-                  </div>
-                ))}
-              </div>
-            </aside>
-          </section>
-
-          {/* 그리드 섹션 */}
-          <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-8">오늘의 주요 뉴스</h3>
-          <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {gridArticles.map((a, i) => (
-              <div key={i} className="cursor-pointer group" onClick={() => {
-                const idx = CATEGORIES.indexOf(a.category);
-                setCatIdx(idx >= 0 ? idx : 0);
-                setView('paper');
-              }}>
-                <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200">
-                  <img src={a.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110" alt="" />
-                </div>
-                <div className="flex items-center gap-2 mb-1">
-                   <span className="text-[9px] font-black text-white bg-black/70 px-1.5 uppercase">{a.category}</span>
-                </div>
-                <h4 className="text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
-              </div>
-            ))}
-          </section>
-        </div>
-      </div>
-    );
-  };
-
   const renderSharedNav = () => (
     <>
       <div className={`panel-overlay ${isEditorOpen ? 'open' : ''}`} onClick={() => !isGenerating && setIsEditorOpen(false)}></div>
@@ -340,36 +394,49 @@ const App: React.FC = () => {
           <form onSubmit={handleUpdate} className="flex flex-col flex-grow gap-4">
             <div>
               <label className="block text-[10px] font-black uppercase mb-1">핵심 주제</label>
-              <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50" placeholder="예: 화성 탐사의 미래" disabled={isGenerating} />
+              <input 
+                type="text" 
+                value={form.title} 
+                onCompositionStart={() => { isComposing.current = true; }}
+                onCompositionEnd={() => { isComposing.current = false; }}
+                onChange={e => setForm({...form, title: e.target.value})} 
+                className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 pointer-events-auto select-text relative z-10" 
+                placeholder="예: 화성 탐사의 미래" 
+                disabled={isGenerating} 
+              />
             </div>
             <div>
               <label className="block text-[10px] font-black uppercase mb-1">출처</label>
-              <input type="text" value={form.source} onChange={e => setForm({...form, source: e.target.value})} className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50" placeholder="예: 과학동아" disabled={isGenerating} />
+              <input 
+                type="text" 
+                value={form.source} 
+                onCompositionStart={() => { isComposing.current = true; }}
+                onCompositionEnd={() => { isComposing.current = false; }}
+                onChange={e => setForm({...form, source: e.target.value})} 
+                className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 pointer-events-auto select-text relative z-10" 
+                placeholder="예: 과학동아" 
+                disabled={isGenerating} 
+              />
             </div>
-            
             <div>
               <label className="block text-[10px] font-black uppercase mb-1">이미지 스타일 ▽</label>
-              <select 
-                value={form.imageStyle} 
-                onChange={e => setForm({...form, imageStyle: e.target.value})} 
-                className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 bg-white"
-                disabled={isGenerating}
-              >
-                {STYLE_OPTIONS.map(opt => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
+              <select value={form.imageStyle} onChange={e => setForm({...form, imageStyle: e.target.value})} className="w-full border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 bg-white pointer-events-auto relative z-10" disabled={isGenerating}>
+                {STYLE_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
               </select>
             </div>
-
             <div className="flex-grow flex flex-col">
               <label className="block text-[10px] font-black uppercase mb-1">기사 내용</label>
-              <textarea value={form.body} onChange={e => setForm({...form, body: e.target.value})} className="w-full flex-grow border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 resize-none custom-scroll" placeholder="내용을 입력하세요." disabled={isGenerating} />
+              <textarea 
+                value={form.body} 
+                onCompositionStart={() => { isComposing.current = true; }}
+                onCompositionEnd={() => { isComposing.current = false; }}
+                onChange={e => setForm({...form, body: e.target.value})} 
+                className="w-full flex-grow border-2 border-black p-2 text-sm outline-none focus:bg-gray-50 resize-none custom-scroll pointer-events-auto select-text relative z-10" 
+                placeholder="내용을 입력하세요." 
+                disabled={isGenerating} 
+              />
             </div>
-            <button 
-              type="submit" 
-              className={`w-full py-3 font-bold uppercase text-xs tracking-widest transition-colors ${isGenerating ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-black text-white hover:bg-gray-800'}`}
-              disabled={isGenerating}
-            >
+            <button type="submit" className={`w-full py-3 font-bold uppercase text-xs tracking-widest transition-colors relative z-10 ${isGenerating ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-black text-white hover:bg-gray-800'}`} disabled={isGenerating}>
               {isGenerating ? '생성 중...' : 'AI 기사 생성'}
             </button>
           </form>
@@ -377,22 +444,14 @@ const App: React.FC = () => {
       </aside>
 
       <header className="bg-white border-b-4 border-black px-8 py-4 flex flex-col items-center shrink-0 z-50">
-        {/* 최상단 포커스 & 실시간 시계 영역 */}
         <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1">
           <div className="flex items-center gap-2 overflow-hidden">
             <span className="bg-black text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0">TODAY'S FOCUS</span>
             <span className="serif-font italic text-gray-700 truncate">“{todaysFocus}”</span>
           </div>
-          {/* 실시간 시계 (1초 업데이트, 요일 포함, text-lg로 크기 확대) */}
-          <div className="serif-font font-black text-gray-900 flex-shrink-0 ml-4 text-lg">
-            {formattedTime}
-          </div>
+          <TimeDisplay />
         </div>
-
-        <h1 
-          className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity"
-          onClick={() => setView('home')}
-        >
+        <h1 className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
           AI 데일리 신문
         </h1>
         <div className="w-full max-w-6xl flex justify-between items-center border-t border-black pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700">
@@ -408,27 +467,12 @@ const App: React.FC = () => {
       <nav className="bg-white border-b border-black shrink-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-8 py-2">
           <div className="flex items-center gap-4">
-            {/* 돋보기 모드 토글 버튼 */}
-            <button 
-              onClick={() => setIsMagnifierOn(!isMagnifierOn)} 
-              className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'bg-black text-white border-black shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`}
-              title="돋보기 모드 (Esc로 해제)"
-            >
+            <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'bg-black text-white border-black shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} title="돋보기 모드 (Esc로 해제)">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </button>
-            
             <div className="flex justify-center gap-6 overflow-x-auto no-scrollbar">
               {CATEGORIES.map((cat, idx) => (
-                <button 
-                  key={cat} 
-                  onClick={() => {
-                    if (!isGenerating) {
-                      setCatIdx(idx);
-                      setView('paper');
-                    }
-                  }} 
-                  className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx && view === 'paper' ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}
-                >
+                <button key={cat} onClick={() => { if (!isGenerating) { setCatIdx(idx); setView('paper'); } }} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx && view === 'paper' ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}>
                   {cat}
                 </button>
               ))}
@@ -440,73 +484,28 @@ const App: React.FC = () => {
     </>
   );
 
-  const NewspaperView = () => (
-    <div className="flex-grow stage relative">
-      <div className="newspaper-container">
-        <div className="central-crease"></div>
-        {dragInfo.active && (
-          <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
-            <div className="w-full h-full bg-[#fdfcf9] opacity-40 border-x border-gray-300"></div>
-          </div>
-        )}
-        <div className="page page-left custom-scroll">
-          <ArticleView article={currentSpread[0]} />
-          {catIdx > 0 && <div className="hotzone hotzone-left" onPointerDown={(e) => onPointerDown(e, 'prev')}><div className="fold-marker"></div></div>}
-        </div>
-        <div className="page page-right custom-scroll">
-          <ArticleView article={currentSpread[1]} />
-          {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
-        </div>
-      </div>
-      {isGenerating && (
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
-          <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
-            <div className="w-12 h-12 border-4 border-black border-t-transparent animate-spin mb-4"></div>
-            <p className="serif-font font-black text-lg">기사를 작성하고 있습니다...</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
   const LENS_SIZE = 220;
   const ZOOM = 1.8;
 
-  const MainLayout = () => (
+  // MainLayout을 컴포넌트가 아닌 JSX 반환 함수로 정의하여 포커스 상실 방지
+  const renderMainLayout = () => (
     <div className="flex flex-col h-screen overflow-hidden bg-[#d1d5db]">
       {renderSharedNav()}
-      {view === 'home' ? <HomeView /> : <NewspaperView />}
+      {view === 'home' ? (
+        <HomeView articles={articles} setCatIdx={setCatIdx} setView={setView} />
+      ) : (
+        <NewspaperView currentSpread={currentSpread} catIdx={catIdx} dragInfo={dragInfo} isAnimating={isAnimating} getRotation={getRotation} onPointerDown={onPointerDown} isGenerating={isGenerating} />
+      )}
     </div>
   );
 
   return (
     <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
-      <MainLayout />
-
-      {/* 돋보기 렌즈 오버레이 */}
+      {renderMainLayout()}
       {isMagnifierOn && (
-        <div 
-          className="fixed rounded-full pointer-events-none border-4 border-gray-500 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[9999]"
-          style={{
-            width: `${LENS_SIZE}px`,
-            height: `${LENS_SIZE}px`,
-            left: `${mousePos.x - LENS_SIZE / 2}px`,
-            top: `${mousePos.y - LENS_SIZE / 2}px`,
-          }}
-        >
-          {/* 렌즈 내부 확대 내용 */}
-          <div 
-            className="absolute bg-[#d1d5db]"
-            style={{
-              width: '100vw',
-              height: '100vh',
-              transformOrigin: 'top left',
-              transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`,
-              pointerEvents: 'none',
-              userSelect: 'none'
-            }}
-          >
-            <MainLayout />
+        <div className="fixed rounded-full pointer-events-none border-4 border-gray-500 overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-[9999]" style={{ width: `${LENS_SIZE}px`, height: `${LENS_SIZE}px`, left: `${mousePos.x - LENS_SIZE / 2}px`, top: `${mousePos.y - LENS_SIZE / 2}px` }}>
+          <div className="absolute bg-[#d1d5db]" style={{ width: '100vw', height: '100vh', transformOrigin: 'top left', transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`, pointerEvents: 'none', userSelect: 'none' }}>
+            {renderMainLayout()}
           </div>
         </div>
       )}
@@ -516,41 +515,20 @@ const App: React.FC = () => {
 
 const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
   if (!article) return <div className="p-10 text-center italic text-gray-400 serif-font">지면이 비어 있습니다.</div>;
-
-  const renderTitle = article.title || '제목 없음';
-  const renderShortBody = article.shortBody || article.body || '';
-  const renderImageAlt = article.imageAlt || '기사 이미지';
-
   return (
     <article className="flex flex-col h-full max-w-xl mx-auto">
       <div className="flex items-center justify-between border-b border-black mb-6 pb-1">
         <span className="text-[10px] font-black text-white bg-black px-2 py-0.5 tracking-widest uppercase">{article.category}</span>
         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">AI DAILY SPECIAL</span>
       </div>
-
-      <h3 className="text-3xl font-black serif-font mb-6 leading-tight break-keep">{renderTitle}</h3>
-
+      <h3 className="text-3xl font-black serif-font mb-6 leading-tight break-keep">{article.title}</h3>
       <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20">
-        {article.imageUrl ? (
-          <img 
-            src={article.imageUrl} 
-            alt={renderImageAlt} 
-            className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 [transition-timing-function:cubic-bezier(0.22,1,0.36,1)] group-hover:scale-[1.2] group-hover:shadow-2xl z-10" 
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>
-        )}
-        <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">
-          [사진] {renderImageAlt}
-        </div>
+        {article.imageUrl ? <img src={article.imageUrl} alt={article.imageAlt} className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-[1.2] group-hover:shadow-2xl z-10" /> : <div className="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>}
+        <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">[사진] {article.imageAlt}</div>
       </div>
-
       <div className="flex-grow">
-        <div className="text-sm leading-[1.8] text-gray-800 text-justify serif-font">
-          <p className="indent-4">{renderShortBody}</p>
-        </div>
+        <div className="text-sm leading-[1.8] text-gray-800 text-justify serif-font"><p className="indent-4">{article.shortBody}</p></div>
       </div>
-
       <div className="mt-10 pt-4 border-t border-dotted border-gray-400">
         <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">출처: {article.sourceName || '익명'}</span>
       </div>
