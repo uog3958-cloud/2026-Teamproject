@@ -178,7 +178,7 @@ const App: React.FC = () => {
 
   const todaysFocus = useMemo(() => {
     const mainArticle = articles[0];
-    return mainArticle ? mainArticle.title : "새로운 시대를 여는 AI 데일리 신문";
+    return mainArticle ? mainArticle.title : "새로운 시대를 여는 동아 일분";
   }, [articles]);
 
   const currentCategory = CATEGORIES[catIdx];
@@ -449,14 +449,14 @@ const App: React.FC = () => {
           <TimeDisplay />
         </div>
         <h1 className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
-          AI 데일리 신문
+          동아 일분
         </h1>
         <div className="w-full max-w-6xl flex justify-between items-center border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700" style={{ borderTopColor: ACCENT_COLOR }}>
           <div className="flex gap-4">
              <button onClick={() => setView('home')} className={`hover:opacity-70 transition-colors ${view === 'home' ? 'underline' : 'text-gray-400'}`} style={{ color: view === 'home' ? ACCENT_COLOR : undefined }}>HOME</button>
              <span>제 2025-0520호</span>
           </div>
-          <span className="text-[10px] font-black tracking-normal serif-font">INTELLIGENT EDITION</span>
+          <span className="text-[10px] font-black tracking-normal serif-font">일분 만에 쓰고, 일분 만에 읽는 뉴스</span>
           <span>THE INTELLIGENT DAILY POST</span>
         </div>
       </header>
