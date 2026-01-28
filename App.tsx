@@ -3,6 +3,8 @@ import { CATEGORIES, Article } from './types';
 import { ARTICLES_DATA } from './constants';
 import { GoogleGenAI } from "@google/genai";
 
+const ACCENT_COLOR = '#0AA8A6';
+
 const STYLE_OPTIONS = [
   { label: '실사 뉴스 (기본값)', value: 'photo', keywords: 'photojournalism, realistic lighting, news photography, documentary style' },
   { label: '카툰 / 일러스트', value: 'cartoon', keywords: 'editorial illustration, cartoon style, clean line art, newspaper illustration' },
@@ -10,7 +12,7 @@ const STYLE_OPTIONS = [
   { label: '상징적 콘셉트 이미지', value: 'concept', keywords: 'conceptual art, symbolic representation, metaphorical scene, abstract but clear meaning' }
 ];
 
-// 1. 실시간 시계 컴포넌트 분리 (App 전체 리렌더링 방지)
+// 1. 실시간 시계 컴포넌트 분리 (App 전체 리렌더링 방지 및 스크롤 위치 유지)
 const TimeDisplay: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -38,7 +40,7 @@ const TimeDisplay: React.FC = () => {
   );
 };
 
-// 2. 홈 화면 컴포넌트 추출
+// 2. 홈 화면 컴포넌트 추출 (언마운트 방지)
 interface HomeViewProps {
   articles: Article[];
   setCatIdx: (idx: number) => void;
@@ -60,7 +62,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
           }}>
             <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200">
               <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
-              <span className="absolute top-4 left-4 bg-black text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest">{heroArticle.category}</span>
+              <span className="absolute top-4 left-4 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: ACCENT_COLOR }}>{heroArticle.category}</span>
             </div>
             <h2 className="text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
             <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
@@ -95,7 +97,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
                 <img src={a.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110" alt="" />
               </div>
               <div className="flex items-center gap-2 mb-1">
-                 <span className="text-[9px] font-black text-white bg-black/70 px-1.5 uppercase">{a.category}</span>
+                 <span className="text-[9px] font-black text-white px-1.5 uppercase" style={{ backgroundColor: ACCENT_COLOR }}>{a.category}</span>
               </div>
               <h4 className="text-sm font-bold serif-font leading-snug group-hover:underline">{a.title}</h4>
             </div>
@@ -140,7 +142,7 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
     {isGenerating && (
       <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
         <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-black border-t-transparent animate-spin mb-4"></div>
+          <div className="w-12 h-12 border-4 border-t-transparent animate-spin mb-4" style={{ borderColor: `${ACCENT_COLOR} transparent ${ACCENT_COLOR} ${ACCENT_COLOR}` }}></div>
           <p className="serif-font font-black text-lg">기사를 작성하고 있습니다...</p>
         </div>
       </div>
@@ -293,17 +295,12 @@ const App: React.FC = () => {
         const sameCategory = prev.filter(a => a.category === currentCategory);
         const otherCategories = prev.filter(a => a.category !== currentCategory);
         
-        // 새 기사 생성 로직 수정: 
-        // 왼쪽(0번) 슬롯만 새 기사로 교체하고, 오른쪽(1번) 슬롯은 기존 데이터를 유지함
         let updatedSameCategory = [];
         if (sameCategory.length >= 2) {
-          // 기존에 2개 이상일 때: 왼쪽 교체, 오른쪽 유지
           updatedSameCategory = [newArticle, sameCategory[1], ...sameCategory.slice(2)];
         } else if (sameCategory.length === 1) {
-          // 기존에 1개일 때: 새 기사가 왼쪽, 기존 기사가 오른쪽으로 이동
           updatedSameCategory = [newArticle, sameCategory[0]];
         } else {
-          // 기존에 없을 때: 새 기사만 (currentSpread에서 Fallback 처리됨)
           updatedSameCategory = [newArticle];
         }
 
@@ -436,17 +433,17 @@ const App: React.FC = () => {
                 disabled={isGenerating} 
               />
             </div>
-            <button type="submit" className={`w-full py-3 font-bold uppercase text-xs tracking-widest transition-colors relative z-10 ${isGenerating ? 'bg-gray-400 cursor-not-allowed text-white' : 'bg-black text-white hover:bg-gray-800'}`} disabled={isGenerating}>
+            <button type="submit" className={`w-full py-3 font-bold uppercase text-xs tracking-widest transition-colors relative z-10 text-white ${isGenerating ? 'bg-gray-400 cursor-not-allowed' : 'hover:opacity-90'}`} style={{ backgroundColor: isGenerating ? undefined : ACCENT_COLOR }} disabled={isGenerating}>
               {isGenerating ? '생성 중...' : 'AI 기사 생성'}
             </button>
           </form>
         </div>
       </aside>
 
-      <header className="bg-white border-b-4 border-black px-8 py-4 flex flex-col items-center shrink-0 z-50">
+      <header className="bg-white border-b-4 px-8 py-4 flex flex-col items-center shrink-0 z-50" style={{ borderBottomColor: ACCENT_COLOR }}>
         <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1">
           <div className="flex items-center gap-2 overflow-hidden">
-            <span className="bg-black text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0">TODAY'S FOCUS</span>
+            <span className="text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0" style={{ backgroundColor: ACCENT_COLOR }}>TODAY'S FOCUS</span>
             <span className="serif-font italic text-gray-700 truncate">“{todaysFocus}”</span>
           </div>
           <TimeDisplay />
@@ -454,9 +451,9 @@ const App: React.FC = () => {
         <h1 className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
           AI 데일리 신문
         </h1>
-        <div className="w-full max-w-6xl flex justify-between items-center border-t border-black pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700">
+        <div className="w-full max-w-6xl flex justify-between items-center border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700" style={{ borderTopColor: ACCENT_COLOR }}>
           <div className="flex gap-4">
-             <button onClick={() => setView('home')} className={`hover:text-black transition-colors ${view === 'home' ? 'text-black underline' : 'text-gray-400'}`}>HOME</button>
+             <button onClick={() => setView('home')} className={`hover:opacity-70 transition-colors ${view === 'home' ? 'underline' : 'text-gray-400'}`} style={{ color: view === 'home' ? ACCENT_COLOR : undefined }}>HOME</button>
              <span>제 2025-0520호</span>
           </div>
           <span className="text-[10px] font-black tracking-normal serif-font">INTELLIGENT EDITION</span>
@@ -467,18 +464,18 @@ const App: React.FC = () => {
       <nav className="bg-white border-b border-black shrink-0 z-40">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-8 py-2">
           <div className="flex items-center gap-4">
-            <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'bg-black text-white border-black shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} title="돋보기 모드 (Esc로 해제)">
+            <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </button>
             <div className="flex justify-center gap-6 overflow-x-auto no-scrollbar">
               {CATEGORIES.map((cat, idx) => (
-                <button key={cat} onClick={() => { if (!isGenerating) { setCatIdx(idx); setView('paper'); } }} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter ${catIdx === idx && view === 'paper' ? 'text-black border-b-2 border-black' : 'text-gray-400 hover:text-black'}`}>
+                <button key={cat} onClick={() => { if (!isGenerating) { setCatIdx(idx); setView('paper'); } }} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter hover:opacity-70`} style={{ color: (catIdx === idx && view === 'paper') ? ACCENT_COLOR : '#9ca3af', borderBottom: (catIdx === idx && view === 'paper') ? `2px solid ${ACCENT_COLOR}` : 'none' }}>
                   {cat}
                 </button>
               ))}
             </div>
           </div>
-          <button onClick={() => setIsEditorOpen(true)} className="bg-black text-white px-4 py-1.5 text-[10px] font-black uppercase hover:bg-gray-800 transition-colors">새로운 기사 쓰기</button>
+          <button onClick={() => setIsEditorOpen(true)} className="text-white px-4 py-1.5 text-[10px] font-black uppercase hover:opacity-90 transition-colors" style={{ backgroundColor: ACCENT_COLOR }}>새로운 기사 쓰기</button>
         </div>
       </nav>
     </>
@@ -518,7 +515,7 @@ const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
   return (
     <article className="flex flex-col h-full max-w-xl mx-auto">
       <div className="flex items-center justify-between border-b border-black mb-6 pb-1">
-        <span className="text-[10px] font-black text-white bg-black px-2 py-0.5 tracking-widest uppercase">{article.category}</span>
+        <span className="text-[10px] font-black text-white px-2 py-0.5 tracking-widest uppercase" style={{ backgroundColor: ACCENT_COLOR }}>{article.category}</span>
         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">AI DAILY SPECIAL</span>
       </div>
       <h3 className="text-3xl font-black serif-font mb-6 leading-tight break-keep">{article.title}</h3>
