@@ -18,6 +18,9 @@ const App: React.FC = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   
+  // 실시간 시간 상태
+  const [currentTime, setCurrentTime] = useState(new Date());
+  
   // 돋보기 모드 상태
   const [isMagnifierOn, setIsMagnifierOn] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -36,10 +39,28 @@ const App: React.FC = () => {
     imageStyle: 'photo'
   });
 
-  const today = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`;
+  // 실시간 시간 업데이트 (1초 단위)
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
+
+  const formattedTime = useMemo(() => {
+    const d = currentTime;
+    const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    const dayOfWeek = weekDays[d.getDay()];
+    const hours = d.getHours().toString().padStart(2, '0');
+    const minutes = d.getMinutes().toString().padStart(2, '0');
+    const seconds = d.getSeconds().toString().padStart(2, '0');
+    return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 (${dayOfWeek}) ${hours}:${minutes}:${seconds}`;
+  }, [currentTime]);
+
+  const todaysFocus = useMemo(() => {
+    const mainArticle = articles[0];
+    return mainArticle ? mainArticle.title : "새로운 시대를 여는 AI 데일리 신문";
+  }, [articles]);
 
   const currentCategory = CATEGORIES[catIdx];
   const currentSpread = useMemo(() => {
@@ -245,8 +266,6 @@ const App: React.FC = () => {
   };
 
   const HomeView: React.FC = () => {
-    // 홈 화면 데이터 구성 (각 카테고리별 첫 기사들 위주)
-    const featuredArticles = articles.slice(0, 10);
     const heroArticle = articles[0];
     const gridArticles = articles.slice(1, 9);
 
@@ -357,7 +376,19 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="bg-white border-b-4 border-black px-8 py-6 flex flex-col items-center shrink-0 z-50">
+      <header className="bg-white border-b-4 border-black px-8 py-4 flex flex-col items-center shrink-0 z-50">
+        {/* 최상단 포커스 & 실시간 시계 영역 */}
+        <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1">
+          <div className="flex items-center gap-2 overflow-hidden">
+            <span className="bg-black text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0">TODAY'S FOCUS</span>
+            <span className="serif-font italic text-gray-700 truncate">“{todaysFocus}”</span>
+          </div>
+          {/* 실시간 시계 (1초 업데이트, 요일 포함, text-lg로 크기 확대) */}
+          <div className="serif-font font-black text-gray-900 flex-shrink-0 ml-4 text-lg">
+            {formattedTime}
+          </div>
+        </div>
+
         <h1 
           className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity"
           onClick={() => setView('home')}
@@ -369,7 +400,7 @@ const App: React.FC = () => {
              <button onClick={() => setView('home')} className={`hover:text-black transition-colors ${view === 'home' ? 'text-black underline' : 'text-gray-400'}`}>HOME</button>
              <span>제 2025-0520호</span>
           </div>
-          <span className="text-sm font-black tracking-normal serif-font">{today}</span>
+          <span className="text-[10px] font-black tracking-normal serif-font">INTELLIGENT EDITION</span>
           <span>THE INTELLIGENT DAILY POST</span>
         </div>
       </header>
@@ -463,7 +494,7 @@ const App: React.FC = () => {
             top: `${mousePos.y - LENS_SIZE / 2}px`,
           }}
         >
-          {/* 렌즈 내부 확대 내용 (동일한 UI를 복제하여 transform 적용) */}
+          {/* 렌즈 내부 확대 내용 */}
           <div 
             className="absolute bg-[#d1d5db]"
             style={{
