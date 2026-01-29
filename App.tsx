@@ -34,7 +34,7 @@ const TimeDisplay: React.FC = () => {
   }, [currentTime]);
 
   return (
-    <div className="serif-font font-black text-gray-900 flex-shrink-0 ml-4 text-lg">
+    <div className="serif-font font-black text-gray-900 flex-shrink-0 ml-4 text-lg md:text-lg text-sm">
       {formattedTime}
     </div>
   );
@@ -45,16 +45,17 @@ interface HomeViewProps {
   articles: Article[];
   setCatIdx: (idx: number) => void;
   setView: (view: 'home' | 'paper') => void;
+  isMobile: boolean;
 }
 
-const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => {
+const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMobile }) => {
   const heroArticle = articles[0];
   const gridArticles = articles.slice(1, 9);
 
   return (
     <div className="flex-grow overflow-y-auto bg-white custom-scroll transition-colors duration-300">
-      <div className="max-w-6xl mx-auto px-8 py-10">
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-10 mb-16">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10 mb-10 md:mb-16">
           <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
             const idx = CATEGORIES.indexOf(heroArticle.category);
             setCatIdx(idx >= 0 ? idx : 0);
@@ -64,7 +65,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
               <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
               <span className="absolute top-4 left-4 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: ACCENT_COLOR }}>{heroArticle.category}</span>
             </div>
-            <h2 className="text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
+            <h2 className="text-2xl md:text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
             <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
           </div>
           
@@ -86,7 +87,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
         </section>
 
         <h3 className="text-xs font-black uppercase tracking-widest border-b-2 border-black pb-2 mb-8">오늘의 주요 뉴스</h3>
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
           {gridArticles.map((a, i) => (
             <div key={i} className="cursor-pointer group" onClick={() => {
               const idx = CATEGORIES.indexOf(a.category);
@@ -112,43 +113,116 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView }) => 
 interface NewspaperViewProps {
   currentSpread: Article[];
   catIdx: number;
+  setCatIdx: (idx: any) => void;
   dragInfo: any;
   isAnimating: boolean;
   getRotation: () => number;
   onPointerDown: (e: React.PointerEvent, direction: 'next' | 'prev') => void;
   isGenerating: boolean;
+  isMobile: boolean;
 }
 
 const NewspaperView: React.FC<NewspaperViewProps> = ({ 
-  currentSpread, catIdx, dragInfo, isAnimating, getRotation, onPointerDown, isGenerating 
-}) => (
-  <div className="flex-grow stage relative">
-    <div className="newspaper-container">
-      <div className="central-crease"></div>
-      {dragInfo.active && (
-        <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
-          <div className="w-full h-full opacity-40 border-x border-gray-300"></div>
+  currentSpread, catIdx, setCatIdx, dragInfo, isAnimating, getRotation, onPointerDown, isGenerating, isMobile 
+}) => {
+  const [mobileStep, setMobileStep] = useState(0);
+
+  // 카테고리 변경 시 모바일 내부 인덱스 초기화
+  useEffect(() => {
+    setMobileStep(0);
+  }, [catIdx]);
+
+  const handleNext = () => {
+    if (mobileStep === 0 && currentSpread.length > 1) {
+      setMobileStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (catIdx < CATEGORIES.length - 1) {
+      setCatIdx((prev: number) => prev + 1);
+    }
+  };
+
+  const handlePrev = () => {
+    if (mobileStep === 1) {
+      setMobileStep(0);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (catIdx > 0) {
+      setCatIdx((prev: number) => prev - 1);
+      setMobileStep(1); // 이전 카테고리의 마지막 기사로 이동
+    }
+  };
+
+  if (isMobile) {
+    return (
+      <div className="flex-grow stage flex-col">
+        <div className="newspaper-container flex-grow">
+          <div className="page w-full min-h-[70vh]">
+            <ArticleView article={currentSpread[mobileStep] || currentSpread[0]} />
+            <div className="mt-8 text-center text-[10px] font-black opacity-50 uppercase tracking-widest serif-font">
+              {mobileStep === 0 && currentSpread.length > 1 ? "▼ 다음 기사" : (catIdx < CATEGORIES.length - 1 ? "▼ 다음 섹션" : "마지막 기사입니다")}
+            </div>
+          </div>
+        </div>
+        <div className="w-full flex justify-between p-4 bg-white border-t border-gray-200 sticky bottom-0 z-[100] transition-colors duration-300 mobile-nav-footer">
+          <button 
+            onClick={handlePrev} 
+            disabled={catIdx === 0 && mobileStep === 0}
+            className={`px-4 py-2 text-xs font-black uppercase border-2 border-black transition-opacity ${(catIdx === 0 && mobileStep === 0) ? 'opacity-20' : 'active:scale-95'}`}
+          >
+            이전
+          </button>
+          <div className="flex flex-col items-center justify-center">
+             <span className="text-[10px] font-black opacity-40 uppercase tracking-tighter">{CATEGORIES[catIdx]}</span>
+             <span className="text-[8px] font-bold opacity-30">{mobileStep + 1} / {currentSpread.length}</span>
+          </div>
+          <button 
+            onClick={handleNext} 
+            disabled={catIdx === CATEGORIES.length - 1 && mobileStep === currentSpread.length - 1}
+            className={`px-4 py-2 text-xs font-black uppercase border-2 border-black transition-opacity ${(catIdx === CATEGORIES.length - 1 && mobileStep === currentSpread.length - 1) ? 'opacity-20' : 'active:scale-95'}`}
+          >
+            다음
+          </button>
+        </div>
+        {isGenerating && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
+            <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
+              <div className="w-12 h-12 border-4 border-t-transparent animate-spin mb-4" style={{ borderColor: `${ACCENT_COLOR} transparent ${ACCENT_COLOR} ${ACCENT_COLOR}` }}></div>
+              <p className="serif-font font-black text-lg">기사를 작성하고 있습니다...</p>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-grow stage relative">
+      <div className="newspaper-container">
+        <div className="central-crease"></div>
+        {dragInfo.active && (
+          <div className={`flipping-sheet ${isAnimating ? 'animating' : ''} ${dragInfo.direction === 'next' ? 'from-right' : 'from-left'}`} style={{ transform: `rotateY(${getRotation()}deg)` }}>
+            <div className="w-full h-full opacity-40 border-x border-gray-300"></div>
+          </div>
+        )}
+        <div className="page page-left custom-scroll">
+          <ArticleView article={currentSpread[0]} />
+          {catIdx > 0 && <div className="hotzone hotzone-left" onPointerDown={(e) => onPointerDown(e, 'prev')}><div className="fold-marker"></div></div>}
+        </div>
+        <div className="page page-right custom-scroll">
+          <ArticleView article={currentSpread[1]} />
+          {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
+        </div>
+      </div>
+      {isGenerating && (
+        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
+          <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
+            <div className="w-12 h-12 border-4 border-t-transparent animate-spin mb-4" style={{ borderColor: `${ACCENT_COLOR} transparent ${ACCENT_COLOR} ${ACCENT_COLOR}` }}></div>
+            <p className="serif-font font-black text-lg">기사를 작성하고 있습니다...</p>
+          </div>
         </div>
       )}
-      <div className="page page-left custom-scroll">
-        <ArticleView article={currentSpread[0]} />
-        {catIdx > 0 && <div className="hotzone hotzone-left" onPointerDown={(e) => onPointerDown(e, 'prev')}><div className="fold-marker"></div></div>}
-      </div>
-      <div className="page page-right custom-scroll">
-        <ArticleView article={currentSpread[1]} />
-        {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
-      </div>
     </div>
-    {isGenerating && (
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
-        <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
-          <div className="w-12 h-12 border-4 border-t-transparent animate-spin mb-4" style={{ borderColor: `${ACCENT_COLOR} transparent ${ACCENT_COLOR} ${ACCENT_COLOR}` }}></div>
-          <p className="serif-font font-black text-lg">기사를 작성하고 있습니다...</p>
-        </div>
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 const App: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>(ARTICLES_DATA);
@@ -161,6 +235,7 @@ const App: React.FC = () => {
   
   const [isMagnifierOn, setIsMagnifierOn] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const isComposing = useRef(false);
 
   const [dragInfo, setDragInfo] = useState<{
@@ -176,6 +251,16 @@ const App: React.FC = () => {
     source: '',
     imageStyle: 'photo'
   });
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (mobile) setIsMagnifierOn(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -327,19 +412,19 @@ const App: React.FC = () => {
   };
 
   const onPointerDown = (e: React.PointerEvent, direction: 'next' | 'prev') => {
-    if (isAnimating || isGenerating) return;
+    if (isAnimating || isGenerating || isMobile) return;
     setDragInfo({ active: true, startX: e.clientX, currentX: e.clientX, direction });
   };
 
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
       if (isMagnifierOn) setMousePos({ x: e.clientX, y: e.clientY });
-      if (!dragInfo.active) return;
+      if (!dragInfo.active || isMobile) return;
       setDragInfo(prev => ({ ...prev, currentX: e.clientX }));
     };
 
     const onPointerUp = () => {
-      if (!dragInfo.active) return;
+      if (!dragInfo.active || isMobile) return;
       const deltaX = dragInfo.currentX - dragInfo.startX;
       const threshold = window.innerWidth * 0.25;
       const isSuccess = (dragInfo.direction === 'next' && deltaX < -threshold) || 
@@ -375,10 +460,10 @@ const App: React.FC = () => {
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [dragInfo, catIdx, isAnimating, isMagnifierOn]);
+  }, [dragInfo, catIdx, isAnimating, isMagnifierOn, isMobile]);
 
   const getRotation = () => {
-    if (!dragInfo.active) return 0;
+    if (!dragInfo.active || isMobile) return 0;
     const delta = dragInfo.currentX - dragInfo.startX;
     const maxRange = window.innerWidth * 0.5;
     let rotate = (delta / maxRange) * 180;
@@ -390,7 +475,7 @@ const App: React.FC = () => {
   const renderSharedNav = () => (
     <>
       <div className={`panel-overlay ${isEditorOpen ? 'open' : ''}`} onClick={() => !isGenerating && setIsEditorOpen(false)}></div>
-      <aside className={`slide-panel flex flex-col ${isEditorOpen ? 'open' : ''}`}>
+      <aside className={`slide-panel flex flex-col ${isEditorOpen ? 'open' : ''}`} style={{ width: isMobile ? '100%' : '350px' }}>
         <div className="p-6 h-full flex flex-col">
           <div className="flex justify-between items-center border-b-2 border-black pb-4 mb-6">
             <h2 className="text-xl font-black serif-font">기사 생성</h2>
@@ -448,7 +533,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="bg-white border-b-4 px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
+      <header className="bg-white border-b-4 px-4 md:px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
         <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1 transition-colors duration-300">
           <div className="flex items-center gap-2 overflow-hidden">
             <button 
@@ -460,38 +545,40 @@ const App: React.FC = () => {
               <span className="text-[10px] font-bold">바탕색전환</span>
             </button>
             <span className="text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0" style={{ backgroundColor: ACCENT_COLOR }}>TODAY'S FOCUS</span>
-            <span className="serif-font italic text-gray-700 truncate">“{todaysFocus}”</span>
+            <span className="serif-font italic text-gray-700 truncate hidden md:inline">“{todaysFocus}”</span>
           </div>
           <TimeDisplay />
         </div>
-        <h1 className="text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
+        <h1 className="text-3xl md:text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
           동아 일분
         </h1>
         <div className="w-full max-w-6xl flex justify-between items-center border-t pt-1 text-[10px] font-bold uppercase tracking-widest text-gray-700 relative transition-colors duration-300" style={{ borderTopColor: ACCENT_COLOR }}>
           <div className="flex gap-4">
              <button onClick={() => setView('home')} className={`hover:opacity-70 transition-colors ${view === 'home' ? 'underline' : 'text-gray-400'}`} style={{ color: view === 'home' ? ACCENT_COLOR : undefined }}>HOME</button>
-             <span>제 2025-0520호</span>
+             <span className="hidden md:inline">제 2025-0520호</span>
           </div>
-          <span className="text-[10px] font-black tracking-normal serif-font absolute left-1/2 -translate-x-1/2 whitespace-nowrap">일분 만에 쓰고, 일분 만에 읽는 뉴스</span>
-          <span>THE INTELLIGENT DAILY POST</span>
+          <span className="text-[9px] md:text-[10px] font-black tracking-normal serif-font absolute left-1/2 -translate-x-1/2 whitespace-nowrap">일분 만에 쓰고, 일분 만에 읽는 뉴스</span>
+          <span className="hidden md:inline">THE INTELLIGENT DAILY POST</span>
         </div>
       </header>
 
       <nav className="bg-white border-b border-black shrink-0 z-40 transition-colors duration-300">
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-8 py-2">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            </button>
-            <div className="flex justify-center gap-6 overflow-x-auto no-scrollbar">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 py-2">
+          <div className="flex items-center gap-2 md:gap-4 flex-grow overflow-hidden">
+            {!isMobile && (
+              <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              </button>
+            )}
+            <div className="flex justify-start md:justify-center gap-4 md:gap-6 overflow-x-auto no-scrollbar scroll-smooth">
               {CATEGORIES.map((cat, idx) => (
-                <button key={cat} onClick={() => { if (!isGenerating) { setCatIdx(idx); setView('paper'); } }} className={`text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter hover:opacity-70`} style={{ color: (catIdx === idx && view === 'paper') ? ACCENT_COLOR : '#9ca3af', borderBottom: (catIdx === idx && view === 'paper') ? `2px solid ${ACCENT_COLOR}` : 'none' }}>
+                <button key={cat} onClick={() => { if (!isGenerating) { setCatIdx(idx); setView('paper'); } }} className={`text-[10px] md:text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter hover:opacity-70`} style={{ color: (catIdx === idx && view === 'paper') ? ACCENT_COLOR : '#9ca3af', borderBottom: (catIdx === idx && view === 'paper') ? `2px solid ${ACCENT_COLOR}` : 'none' }}>
                   {cat}
                 </button>
               ))}
             </div>
           </div>
-          <button onClick={() => setIsEditorOpen(true)} className="text-white px-4 py-1.5 text-[10px] font-black uppercase hover:opacity-90 transition-colors" style={{ backgroundColor: ACCENT_COLOR }}>새로운 기사 쓰기</button>
+          <button onClick={() => setIsEditorOpen(true)} className="text-white px-3 md:px-4 py-1.5 text-[9px] md:text-[10px] font-black uppercase hover:opacity-90 transition-colors whitespace-nowrap ml-2" style={{ backgroundColor: ACCENT_COLOR }}>기사 쓰기</button>
         </div>
       </nav>
     </>
@@ -502,12 +589,12 @@ const App: React.FC = () => {
 
   // MainLayout을 컴포넌트가 아닌 JSX 반환 함수로 정의하여 포커스 상실 방지
   const renderMainLayout = () => (
-    <div className="flex flex-col h-screen overflow-hidden bg-[#d1d5db] transition-colors duration-300">
+    <div className={`flex flex-col ${isMobile ? 'min-h-screen overflow-y-auto' : 'h-screen overflow-hidden'} bg-[#d1d5db] transition-colors duration-300`}>
       {renderSharedNav()}
       {view === 'home' ? (
-        <HomeView articles={articles} setCatIdx={setCatIdx} setView={setView} />
+        <HomeView articles={articles} setCatIdx={setCatIdx} setView={setView} isMobile={isMobile} />
       ) : (
-        <NewspaperView currentSpread={currentSpread} catIdx={catIdx} dragInfo={dragInfo} isAnimating={isAnimating} getRotation={getRotation} onPointerDown={onPointerDown} isGenerating={isGenerating} />
+        <NewspaperView currentSpread={currentSpread} catIdx={catIdx} setCatIdx={setCatIdx} dragInfo={dragInfo} isAnimating={isAnimating} getRotation={getRotation} onPointerDown={onPointerDown} isGenerating={isGenerating} isMobile={isMobile} />
       )}
     </div>
   );
@@ -515,7 +602,7 @@ const App: React.FC = () => {
   return (
     <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
       {renderMainLayout()}
-      {isMagnifierOn && (
+      {!isMobile && isMagnifierOn && (
         <div 
           className="fixed pointer-events-none z-[9999]" 
           style={{ 
@@ -548,13 +635,13 @@ const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
         <span className="text-[10px] font-black text-white px-2 py-0.5 tracking-widest uppercase" style={{ backgroundColor: ACCENT_COLOR }}>{article.category}</span>
         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">AI DAILY SPECIAL</span>
       </div>
-      <h3 className="text-3xl font-black serif-font mb-6 leading-tight break-keep">{article.title}</h3>
+      <h3 className="text-2xl md:text-3xl font-black serif-font mb-6 leading-tight break-keep">{article.title}</h3>
       <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20 transition-colors duration-300">
         {article.imageUrl ? <img src={article.imageUrl} alt={article.imageAlt} className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-[1.2] group-hover:shadow-2xl z-10" /> : <div className="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>}
         <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">[사진] {article.imageAlt}</div>
       </div>
       <div className="flex-grow">
-        <div className="text-sm leading-[1.8] text-gray-800 text-justify serif-font"><p className="indent-4">{article.shortBody}</p></div>
+        <div className="text-base md:text-sm leading-[1.8] text-gray-800 text-justify serif-font"><p className="indent-4">{article.shortBody}</p></div>
       </div>
       <div className="mt-10 pt-4 border-t border-dotted border-gray-400 transition-colors duration-300">
         <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">출처: {article.sourceName || '익명'}</span>

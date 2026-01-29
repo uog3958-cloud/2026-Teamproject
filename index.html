@@ -233,7 +233,52 @@
             color: #E5E7EB !important;
         }
 
-        @media (max-width: 1024px) {
+        /* Mobile Specific Styles (<= 768px) */
+        @media (max-width: 768px) {
+            body { overflow-y: auto; }
+            .stage { height: auto; min-height: calc(100vh - 160px); align-items: flex-start; padding: 1rem 0; }
+            .newspaper-container { 
+                grid-template-columns: 1fr; 
+                width: 100%; 
+                height: auto; 
+                box-shadow: none; 
+                background: transparent;
+            }
+            .page { 
+                width: 95%; 
+                margin: 0 auto 1.5rem; 
+                padding: 1.5rem; 
+                border-radius: 4px; 
+                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+                overflow-y: visible;
+                height: auto;
+            }
+            .page-left, .page-right { border: 1px solid var(--border-color); }
+            .central-crease, .flipping-sheet, .hotzone, .fold-marker { display: none !important; }
+            
+            /* Typography Improvements for Mobile */
+            .page article h3 { font-size: 1.5rem !important; line-height: 1.4 !important; }
+            .page article p { font-size: 1rem !important; line-height: 1.8 !important; }
+
+            /* Disable Hover Effects on Mobile */
+            .group:hover img { transform: none !important; filter: grayscale(30%) !important; }
+            [data-theme='dark'] .group:hover img { filter: grayscale(50%) !important; }
+            .group:hover .underline { text-decoration: none !important; }
+            
+            /* Mobile Nav Buttons */
+            .mobile-nav-footer {
+                display: flex;
+                justify-content: space-between;
+                padding: 1rem;
+                background: var(--bg-panel);
+                border-top: 1px solid var(--border-color);
+                position: sticky;
+                bottom: 0;
+                z-index: 100;
+            }
+        }
+
+        @media (max-width: 1024px) and (min-width: 769px) {
             .newspaper-container { grid-template-columns: 1fr; height: auto; overflow-y: visible; }
             .page-right, .central-crease { display: none; }
         }
