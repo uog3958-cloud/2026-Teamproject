@@ -126,6 +126,10 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
   currentSpread, catIdx, setCatIdx, dragInfo, isAnimating, getRotation, onPointerDown, isGenerating, isMobile 
 }) => {
   const [mobileStep, setMobileStep] = useState(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const startPos = useRef({ x: 0, y: 0 });
+  const isSwipingRef = useRef(false);
+  const [showHint, setShowHint] = useState(() => !localStorage.getItem('swipeHintDismissed'));
 
   // 카테고리 변경 시 모바일 내부 인덱스 초기화
   useEffect(() => {
@@ -151,37 +155,64 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
     }
   };
 
+  const onTouchStart = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    startPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    isSwipingRef.current = false;
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    if (!isMobile) return;
+    const dx = e.touches[0].clientX - startPos.current.x;
+    const dy = e.touches[0].clientY - startPos.current.y;
+
+    if (!isSwipingRef.current && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+      isSwipingRef.current = true;
+    }
+
+    if (isSwipingRef.current) {
+      setSwipeOffset(dx);
+      if (e.cancelable) e.preventDefault();
+    }
+  };
+
+  const onTouchEnd = () => {
+    if (!isMobile) return;
+    if (isSwipingRef.current) {
+      if (swipeOffset < -60) handleNext();
+      else if (swipeOffset > 60) handlePrev();
+    }
+    setSwipeOffset(0);
+    isSwipingRef.current = false;
+    if (showHint) {
+      setShowHint(false);
+      localStorage.setItem('swipeHintDismissed', 'true');
+    }
+  };
+
   if (isMobile) {
     return (
-      <div className="flex-grow stage flex-col">
-        <div className="newspaper-container flex-grow">
+      <div 
+        className="flex-grow stage flex-col relative"
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        <div className="newspaper-container flex-grow" style={{ transform: `translateX(${swipeOffset}px)`, transition: swipeOffset === 0 ? 'transform 0.3s ease' : 'none' }}>
           <div className="page w-full min-h-[70vh]">
             <ArticleView article={currentSpread[mobileStep] || currentSpread[0]} />
             <div className="mt-8 text-center text-[10px] font-black opacity-50 uppercase tracking-widest serif-font">
-              {mobileStep === 0 && currentSpread.length > 1 ? "▼ 다음 기사" : (catIdx < CATEGORIES.length - 1 ? "▼ 다음 섹션" : "마지막 기사입니다")}
+              {mobileStep === 0 && currentSpread.length > 1 ? " 옆으로 넘겨 다음 기사" : (catIdx < CATEGORIES.length - 1 ? " 옆으로 넘겨 다음 섹션" : "마지막 기사입니다")}
             </div>
           </div>
         </div>
-        <div className="w-full flex justify-between p-4 bg-white border-t border-gray-200 sticky bottom-0 z-[100] transition-colors duration-300 mobile-nav-footer">
-          <button 
-            onClick={handlePrev} 
-            disabled={catIdx === 0 && mobileStep === 0}
-            className={`px-4 py-2 text-xs font-black uppercase border-2 border-black transition-opacity ${(catIdx === 0 && mobileStep === 0) ? 'opacity-20' : 'active:scale-95'}`}
-          >
-            이전
-          </button>
-          <div className="flex flex-col items-center justify-center">
-             <span className="text-[10px] font-black opacity-40 uppercase tracking-tighter">{CATEGORIES[catIdx]}</span>
-             <span className="text-[8px] font-bold opacity-30">{mobileStep + 1} / {currentSpread.length}</span>
+
+        {showHint && (
+          <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-full text-[11px] font-black z-[200] serif-font shadow-xl flex items-center gap-2">
+            <span>← →</span> 옆으로 넘겨 기사 이동
           </div>
-          <button 
-            onClick={handleNext} 
-            disabled={catIdx === CATEGORIES.length - 1 && mobileStep === currentSpread.length - 1}
-            className={`px-4 py-2 text-xs font-black uppercase border-2 border-black transition-opacity ${(catIdx === CATEGORIES.length - 1 && mobileStep === currentSpread.length - 1) ? 'opacity-20' : 'active:scale-95'}`}
-          >
-            다음
-          </button>
-        </div>
+        )}
+
         {isGenerating && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-[1000] flex items-center justify-center">
             <div className="bg-white border-4 border-black p-8 shadow-2xl flex flex-col items-center">
