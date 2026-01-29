@@ -311,7 +311,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
   const gridArticles = articles.slice(1, 9);
 
   return (
-    <div className="flex-grow overflow-y-auto bg-white custom-scroll transition-colors duration-300">
+    <div className="flex-grow overflow-y-auto bg-[#f7f7f5] custom-scroll transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10 mb-10 md:mb-16">
           <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
@@ -859,7 +859,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="bg-white border-b-4 px-4 md:px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
+      <header className="bg-[#f7f7f5] border-b-4 px-4 md:px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
         <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1 transition-colors duration-300">
           <div className="flex items-center gap-2 overflow-hidden">
             <button 
@@ -891,7 +891,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <nav className="bg-white border-b border-black shrink-0 z-40 transition-colors duration-300">
+      <nav className="bg-[#f7f7f5] border-b border-black shrink-0 z-40 transition-colors duration-300">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 py-2">
           <div className="flex items-center gap-2 md:gap-4 flex-grow overflow-hidden">
             {!isMobile && (
