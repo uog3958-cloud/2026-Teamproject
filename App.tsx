@@ -43,6 +43,15 @@ const getWeatherStatus = (code: number) => {
   return '정보없음';
 };
 
+// 날씨 상태에 따른 분위기 분류 매핑 (흐림은 sunny로 통합)
+const mapWeatherToAtmosphere = (status: string | undefined): 'sunny' | 'rainy' | 'snowy' => {
+  if (!status) return 'sunny';
+  if (status === '맑음' || status === '흐림' || status === '안개' || status === '정보없음') return 'sunny';
+  if (status === '눈') return 'snowy';
+  if (status.includes('비') || status === '뇌우' || status === '소나기' || status === '가랑비') return 'rainy';
+  return 'sunny';
+};
+
 // 날씨 아이콘 매핑
 const getWeatherIcon = (status: string) => {
   switch (status) {
@@ -68,7 +77,36 @@ const getWeatherClassName = (status: string | undefined) => {
   return '';
 };
 
-// 1. 실시간 시계 컴포넌트 분리 (App 전체 리렌더링 방지 및 스크롤 위치 유지)
+// 미세 눈 내림 효과 컴포넌트
+const SnowEffect: React.FC = () => {
+  const snowflakes = useMemo(() => {
+    return Array.from({ length: 30 }).map((_, i) => {
+      const size = Math.random() * 2 + 1; // 1~3px
+      const left = Math.random() * 100; // 0~100%
+      const duration = Math.random() * 5 + 10; // 10~15s
+      const delay = Math.random() * 10;
+      const opacity = Math.random() * 0.25 + 0.2; // 0.2~0.45
+      return (
+        <div
+          key={i}
+          className="snowflake"
+          style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            left: `${left}%`,
+            animationDuration: `${duration}s`,
+            animationDelay: `${delay}s`,
+            opacity: opacity,
+          }}
+        />
+      );
+    });
+  }, []);
+
+  return <div className="fixed inset-0 pointer-events-none z-[200] overflow-hidden">{snowflakes}</div>;
+};
+
+// 1. 실시간 시계 컴포넌트 분리
 const TimeDisplay: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -96,12 +134,28 @@ const TimeDisplay: React.FC = () => {
   );
 };
 
-// 날씨 표시 컴포넌트
-const WeatherDisplay: React.FC = () => {
+// 분위기 수동 선택 옵션 타입
+type WeatherOverride = 'auto' | 'sunny' | 'rainy' | 'snowy';
+
+// 날씨 및 분위기 조절 컴포넌트
+const WeatherDisplay: React.FC<{ 
+  onAtmosphereChange: (atmosphere: 'sunny' | 'rainy' | 'snowy') => void 
+}> = ({ onAtmosphereChange }) => {
   const [location, setLocation] = useState(() => localStorage.getItem('donga_one_minute_location') || '서울');
   const [weatherData, setWeatherData] = useState<{ status: string; temp: number } | null>(null);
+  const [override, setOverride] = useState<WeatherOverride>(() => (localStorage.getItem('donga_one_minute_weather_override') as WeatherOverride) || 'auto');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // 날씨 데이터 기반 자동 분위기 계산
+  const autoAtmosphere = useMemo(() => mapWeatherToAtmosphere(weatherData?.status), [weatherData]);
+
+  // 최종 분위기 결정 및 적용
+  useEffect(() => {
+    const finalAtmosphere = override === 'auto' ? autoAtmosphere : override;
+    document.documentElement.setAttribute('data-weather', finalAtmosphere);
+    onAtmosphereChange(finalAtmosphere);
+  }, [override, autoAtmosphere, onAtmosphereChange]);
 
   const fetchWeather = async (loc: string) => {
     setLoading(true);
@@ -111,8 +165,9 @@ const WeatherDisplay: React.FC = () => {
       const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lng}&current_weather=true`);
       const data = await response.json();
       if (data.current_weather) {
+        const status = getWeatherStatus(data.current_weather.weathercode);
         setWeatherData({
-          status: getWeatherStatus(data.current_weather.weathercode),
+          status: status,
           temp: Math.round(data.current_weather.temperature)
         });
       } else {
@@ -127,7 +182,6 @@ const WeatherDisplay: React.FC = () => {
 
   useEffect(() => {
     fetchWeather(location);
-    // 30분마다 갱신
     const interval = setInterval(() => fetchWeather(location), 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, [location]);
@@ -138,51 +192,83 @@ const WeatherDisplay: React.FC = () => {
     localStorage.setItem('donga_one_minute_location', newLoc);
   };
 
+  const handleOverrideChange = (value: WeatherOverride) => {
+    setOverride(value);
+    localStorage.setItem('donga_one_minute_weather_override', value);
+  };
+
   return (
-    <div className="flex items-center gap-2 mt-1">
-      <select 
-        value={location} 
-        onChange={handleLocationChange}
-        className="text-[10px] bg-transparent border-none font-bold text-gray-500 cursor-pointer focus:outline-none hover:text-gray-900 transition-colors"
-      >
-        {Object.keys(CITY_COORDS).map(city => (
-          <option key={city} value={city}>{city}</option>
-        ))}
-      </select>
-      <div className="serif-font font-medium text-gray-800 text-xs md:text-sm">
-        {loading ? (
-          "오늘의 날씨: 불러오는 중…"
-        ) : error ? (
-          "오늘의 날씨: 정보를 불러오지 못했습니다"
-        ) : (
-          <>
-            오늘의 날씨: {location} · {weatherData?.status === '흐림' ? (
-              <svg 
-                className={`weather-icon ${getWeatherClassName(weatherData.status)}`} 
-                width="18" 
-                height="18" 
-                viewBox="0 0 24 24" 
-                fill="currentColor" 
-                style={{ display: 'inline-block', verticalAlign: 'text-bottom', marginRight: '2px' }}
-              >
-                <path d="M17.5,19c3.037,0,5.5-2.463,5.5-5.5c0-2.822-2.128-5.151-4.881-5.466C17.062,5.185,14.3,3,11,3C7.54,3,4.646,5.346,3.864,8.513C2.18,9.453,1,11.23,1,13.25C1,16.425,3.575,19,6.75,19H17.5z" />
-              </svg>
-            ) : (
-              <span 
-                className={`weather-icon ${getWeatherClassName(weatherData?.status)}`} 
-                style={{ fontSize: '1.2em', verticalAlign: 'middle' }}
-              >
-                {getWeatherIcon(weatherData?.status || '')}
-              </span>
-            )} {weatherData?.status} · {weatherData?.temp}°C
-          </>
-        )}
+    <div className="flex flex-col items-end">
+      <div className="flex items-center gap-2 mt-1">
+        <select 
+          value={location} 
+          onChange={handleLocationChange}
+          className="text-[10px] bg-transparent border-none font-bold text-gray-500 cursor-pointer focus:outline-none hover:text-gray-900 transition-colors"
+        >
+          {Object.keys(CITY_COORDS).map(city => (
+            <option key={city} value={city}>{city}</option>
+          ))}
+        </select>
+        <div className="serif-font font-medium text-gray-800 text-xs md:text-sm">
+          {loading ? (
+            "오늘의 날씨: 불러오는 중…"
+          ) : error ? (
+            "오늘의 날씨: 정보를 불러오지 못했습니다"
+          ) : (
+            <>
+              오늘의 날씨: {location} · {weatherData?.status === '흐림' ? (
+                <svg 
+                  className={`weather-icon ${getWeatherClassName(weatherData.status)}`} 
+                  width="18" 
+                  height="18" 
+                  viewBox="0 0 24 24" 
+                  fill="currentColor" 
+                  style={{ display: 'inline-block', verticalAlign: 'text-bottom', marginRight: '2px' }}
+                >
+                  <path d="M17.5,19c3.037,0,5.5-2.463,5.5-5.5c0-2.822-2.128-5.151-4.881-5.466C17.062,5.185,14.3,3,11,3C7.54,3,4.646,5.346,3.864,8.513C2.18,9.453,1,11.23,1,13.25C1,16.425,3.575,19,6.75,19H17.5z" />
+                </svg>
+              ) : (
+                <span 
+                  className={`weather-icon ${getWeatherClassName(weatherData?.status)}`} 
+                  style={{ fontSize: '1.2em', verticalAlign: 'middle' }}
+                >
+                  {getWeatherIcon(weatherData?.status || '')}
+                </span>
+              )} {weatherData?.status} · {weatherData?.temp}°C
+            </>
+          )}
+        </div>
+      </div>
+      
+      {/* 수동 분위기 선택 UI */}
+      <div className="flex gap-1.5 mt-1.5">
+        {(['auto', 'sunny', 'rainy', 'snowy'] as WeatherOverride[]).map((opt) => {
+          const labelMap: Record<WeatherOverride, string> = { auto: '자동', sunny: '맑음', rainy: '비', snowy: '눈' };
+          const isActive = override === opt;
+          return (
+            <button
+              key={opt}
+              onClick={() => handleOverrideChange(opt)}
+              className={`text-[9px] font-bold px-1.5 py-0.5 border transition-all ${
+                isActive 
+                ? 'text-black border-black bg-gray-50' 
+                : 'text-gray-400 border-gray-200 hover:border-gray-400'
+              }`}
+              style={{ 
+                borderBottomWidth: isActive ? '2px' : '1px',
+                borderColor: isActive ? ACCENT_COLOR : undefined 
+              }}
+            >
+              {labelMap[opt]}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
 };
 
-// 2. 홈 화면 컴포넌트 추출 (언마운트 방지)
+// 2. 홈 화면 컴포넌트
 interface HomeViewProps {
   articles: Article[];
   setCatIdx: (idx: number) => void;
@@ -251,7 +337,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
   );
 };
 
-// 3. 신문 지면 화면 컴포넌트 추출
+// 3. 신문 지면 화면 컴포넌트
 interface NewspaperViewProps {
   currentSpread: Article[];
   catIdx: number;
@@ -273,7 +359,6 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
   const isSwipingRef = useRef(false);
   const [showHint, setShowHint] = useState(() => !localStorage.getItem('swipeHintDismissed'));
 
-  // 카테고리 변경 시 모바일 내부 인덱스 초기화
   useEffect(() => {
     setMobileStep(0);
   }, [catIdx]);
@@ -293,7 +378,7 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (catIdx > 0) {
       setCatIdx((prev: number) => prev - 1);
-      setMobileStep(1); // 이전 카테고리의 마지막 기사로 이동
+      setMobileStep(1); 
     }
   };
 
@@ -404,7 +489,6 @@ const HighlightedText: React.FC<{ text: string; keywords: string[] }> = ({ text,
   let parts: React.ReactNode[] = [text];
   let highlightedCount = 0;
   
-  // 긴 키워드부터 매칭하여 부분 매칭 방지
   const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
 
   for (const keyword of sortedKeywords) {
@@ -441,6 +525,7 @@ const App: React.FC = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
+  const [activeAtmosphere, setActiveAtmosphere] = useState<'sunny' | 'rainy' | 'snowy'>('sunny');
   
   const [isMagnifierOn, setIsMagnifierOn] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -485,7 +570,6 @@ const App: React.FC = () => {
   const currentSpread = useMemo(() => {
     const filtered = articles.filter(a => a.category === currentCategory);
     
-    // 항상 2개의 슬롯이 채워지도록 보장 (지면이 비지 않게 Fallback 적용)
     const leftArticle = filtered[0] || ARTICLES_DATA.find(a => a.category === currentCategory) || ARTICLES_DATA[0];
     const rightArticle = filtered[1] || (filtered[0] ? ARTICLES_DATA.find(a => a.category === currentCategory && a.title !== filtered[0].title) : null) || ARTICLES_DATA[1] || ARTICLES_DATA[0];
     
@@ -761,7 +845,7 @@ const App: React.FC = () => {
           </div>
           <div className="flex flex-col items-end">
             <TimeDisplay />
-            <WeatherDisplay />
+            <WeatherDisplay onAtmosphereChange={setActiveAtmosphere} />
           </div>
         </div>
         <h1 className="text-3xl md:text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
@@ -802,7 +886,6 @@ const App: React.FC = () => {
   const LENS_SIZE = 220;
   const ZOOM = 1.8;
 
-  // MainLayout을 컴포넌트가 아닌 JSX 반환 함수로 정의하여 포커스 상실 방지
   const renderMainLayout = () => (
     <div className={`flex flex-col ${isMobile ? 'min-h-screen overflow-y-auto' : 'h-screen overflow-hidden'} bg-[#d1d5db] transition-colors duration-300`}>
       {renderSharedNav()}
@@ -817,6 +900,7 @@ const App: React.FC = () => {
   return (
     <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
       {renderMainLayout()}
+      {activeAtmosphere === 'snowy' && <SnowEffect />}
       {!isMobile && isMagnifierOn && (
         <div 
           className="fixed pointer-events-none z-[9999]" 
@@ -827,10 +911,7 @@ const App: React.FC = () => {
             top: `${mousePos.y - LENS_SIZE / 2}px` 
           }}
         >
-          {/* Magnifying Glass Handle */}
           <div className="magnifier-handle"></div>
-          
-          {/* Magnifying Glass Lens Frame */}
           <div className="magnifier-glass">
             <div className="absolute bg-[#d1d5db]" style={{ width: '100vw', height: '100vh', transformOrigin: 'top left', transform: `scale(${ZOOM}) translate(${-mousePos.x + (LENS_SIZE / 2) / ZOOM}px, ${-mousePos.y + (LENS_SIZE / 2) / ZOOM}px)`, pointerEvents: 'none', userSelect: 'none' }}>
               {renderMainLayout()}
