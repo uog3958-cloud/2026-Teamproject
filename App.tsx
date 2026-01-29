@@ -77,15 +77,45 @@ const getWeatherClassName = (status: string | undefined) => {
   return '';
 };
 
-// 미세 눈 내림 효과 컴포넌트
+// 빗줄기 효과 컴포넌트 (입자 기반 루프 방식)
+const RainEffect: React.FC = () => {
+  const raindrops = useMemo(() => {
+    return Array.from({ length: 45 }).map((_, i) => {
+      const width = 2 + Math.random() * 1; // 2~3px
+      const height = 6 + Math.random() * 6; // 6~12px
+      const left = Math.random() * 100; // 0~100%
+      const duration = Math.random() * 0.4 + 0.8; // 0.8~1.2s (눈보다 빠름)
+      const delay = Math.random() * 2;
+      const opacity = Math.random() * 0.2 + 0.25; // 0.25~0.45
+      return (
+        <div
+          key={i}
+          className="raindrop"
+          style={{
+            width: `${width}px`,
+            height: `${height}px`,
+            left: `${left}%`,
+            animationDuration: `${duration}s`,
+            animationDelay: `${delay}s`,
+            opacity: opacity,
+          }}
+        />
+      );
+    });
+  }, []);
+
+  return <div className="fixed inset-0 pointer-events-none z-[200] overflow-hidden">{raindrops}</div>;
+};
+
+// 눈 내림 효과 컴포넌트
 const SnowEffect: React.FC = () => {
   const snowflakes = useMemo(() => {
     return Array.from({ length: 30 }).map((_, i) => {
-      const size = Math.random() * 2 + 1; // 1~3px
+      const size = Math.random() * 3 + 2; // 2~5px
       const left = Math.random() * 100; // 0~100%
       const duration = Math.random() * 5 + 10; // 10~15s
       const delay = Math.random() * 10;
-      const opacity = Math.random() * 0.25 + 0.2; // 0.2~0.45
+      const opacity = Math.random() * 0.3 + 0.2; // 0.2~0.5
       return (
         <div
           key={i}
@@ -289,9 +319,9 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
             setCatIdx(idx >= 0 ? idx : 0);
             setView('paper');
           }}>
-            <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200 transition-colors duration-300">
+            <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200 transition-colors duration-300 article-image-container">
               <img src={heroArticle.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-105" alt="" />
-              <span className="absolute top-4 left-4 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest" style={{ backgroundColor: ACCENT_COLOR }}>{heroArticle.category}</span>
+              <span className="absolute top-4 left-4 text-white text-[10px] font-black px-2 py-1 uppercase tracking-widest z-20" style={{ backgroundColor: ACCENT_COLOR }}>{heroArticle.category}</span>
             </div>
             <h2 className="text-2xl md:text-4xl font-black serif-font mb-4 leading-tight group-hover:underline underline-offset-4">{heroArticle.title}</h2>
             <p className="text-gray-600 leading-relaxed line-clamp-3 serif-font">{heroArticle.shortBody}</p>
@@ -322,7 +352,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
               setCatIdx(idx >= 0 ? idx : 0);
               setView('paper');
             }}>
-              <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200 transition-colors duration-300">
+              <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200 transition-colors duration-300 article-image-container">
                 <img src={a.imageUrl} className="w-full h-full object-cover grayscale-[30%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110" alt="" />
               </div>
               <div className="flex items-center gap-2 mb-1">
@@ -900,6 +930,7 @@ const App: React.FC = () => {
   return (
     <div className={`relative ${isMagnifierOn ? 'cursor-none' : ''}`}>
       {renderMainLayout()}
+      {activeAtmosphere === 'rainy' && <RainEffect />}
       {activeAtmosphere === 'snowy' && <SnowEffect />}
       {!isMobile && isMagnifierOn && (
         <div 
@@ -932,7 +963,7 @@ const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
         <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">AI DAILY SPECIAL</span>
       </div>
       <h3 className="text-2xl md:text-3xl font-black serif-font mb-6 leading-tight break-keep">{article.title}</h3>
-      <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20 transition-colors duration-300">
+      <div className="w-full aspect-[16/10] bg-gray-200 border border-gray-300 mb-6 relative group z-20 transition-colors duration-300 article-image-container">
         {article.imageUrl ? <img src={article.imageUrl} alt={article.imageAlt} className="absolute inset-0 w-full h-full object-cover grayscale-[50%] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-[1.2] group-hover:shadow-2xl z-10" /> : <div className="absolute inset-0 bg-gray-100 flex items-center justify-center text-gray-400 italic text-xs">이미지 생성 대기 중</div>}
         <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">[사진] {article.imageAlt}</div>
       </div>
