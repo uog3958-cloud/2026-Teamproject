@@ -255,6 +255,42 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
   );
 };
 
+// 기사 본문 내 키워드 하이라이팅 컴포넌트
+const HighlightedText: React.FC<{ text: string; keywords: string[] }> = ({ text, keywords }) => {
+  if (!keywords || keywords.length === 0) return <>{text}</>;
+  
+  let parts: React.ReactNode[] = [text];
+  let highlightedCount = 0;
+  
+  // 긴 키워드부터 매칭하여 부분 매칭 방지
+  const sortedKeywords = [...keywords].sort((a, b) => b.length - a.length);
+
+  for (const keyword of sortedKeywords) {
+    if (highlightedCount >= 2) break;
+    const nextParts: React.ReactNode[] = [];
+    
+    for (const part of parts) {
+      if (typeof part !== 'string' || highlightedCount >= 2) {
+        nextParts.push(part);
+        continue;
+      }
+      
+      const idx = part.indexOf(keyword);
+      if (idx !== -1) {
+        nextParts.push(part.substring(0, idx));
+        nextParts.push(<span key={`kw-${highlightedCount}`} className="keyword-underline">{keyword}</span>);
+        nextParts.push(part.substring(idx + keyword.length));
+        highlightedCount++;
+      } else {
+        nextParts.push(part);
+      }
+    }
+    parts = nextParts;
+  }
+  
+  return <>{parts}</>;
+};
+
 const App: React.FC = () => {
   const [articles, setArticles] = useState<Article[]>(ARTICLES_DATA);
   const [catIdx, setCatIdx] = useState(0);
@@ -347,11 +383,13 @@ const App: React.FC = () => {
           1. "title": 18자~32자 사이의 강렬한 헤드라인.
           2. "shortBody": 띄어쓰기 포함 반드시 200자 이내. 줄바꿈 없이 단일 문단으로 구성.
           3. 원문을 그대로 복사하지 말고 새로운 문장으로 재구성.
+          4. "keywords": 기사 내용을 대표하는 핵심 단어 3~5개를 배열 형태로 생성.
           
           반드시 아래 JSON 구조로만 응답하세요:
           {
             "title": "헤드라인 문자열",
             "shortBody": "200자 이내 요약 본문 문자열",
+            "keywords": ["키워드1", "키워드2", "키워드3"],
             "image": {
               "prompt": "Detailed English prompt for a professional photo related to this topic",
               "alt": "Korean image description"
@@ -378,6 +416,7 @@ const App: React.FC = () => {
         generatedData = {
           title: trimmedTitle,
           shortBody: trimmedBody.slice(0, 200),
+          keywords: [],
           image: { prompt: `Professional news photo about ${trimmedTitle}`, alt: trimmedTitle },
           sourceName: trimmedSource || '익명'
         };
@@ -408,7 +447,7 @@ const App: React.FC = () => {
         shortBody: cleanText(generatedData.shortBody).slice(0, 200),
         body: '', 
         contextBox: '',
-        keywords: [],
+        keywords: generatedData.keywords || [],
         sourceName: cleanText(generatedData.sourceName),
         sourceUrl: '#',
         imageAlt: cleanText(generatedData.image.alt),
@@ -672,10 +711,19 @@ const ArticleView: React.FC<{ article: Article }> = ({ article }) => {
         <div className="absolute bottom-0 left-0 right-0 bg-white/90 p-2 text-[9px] italic border-t border-gray-200 z-20 pointer-events-none transition-all duration-200 group-hover:opacity-0 group-hover:invisible">[사진] {article.imageAlt}</div>
       </div>
       <div className="flex-grow">
-        <div className="text-base md:text-sm leading-[1.8] text-gray-800 text-justify serif-font"><p className="indent-4">{article.shortBody}</p></div>
+        <div className="text-base md:text-sm leading-[1.8] text-gray-800 text-justify serif-font">
+          <p className="indent-4">
+            <HighlightedText text={article.shortBody} keywords={article.keywords} />
+          </p>
+        </div>
       </div>
-      <div className="mt-10 pt-4 border-t border-dotted border-gray-400 transition-colors duration-300">
-        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">출처: {article.sourceName || '익명'}</span>
+      <div className="mt-10 pt-4 border-t border-dotted border-gray-400 transition-colors duration-300 flex flex-wrap items-center gap-x-3">
+        <span className="text-xs font-bold text-gray-600 uppercase tracking-widest whitespace-nowrap">출처: {article.sourceName || '익명'}</span>
+        {article.keywords && article.keywords.length > 0 && (
+          <span className="text-sm font-medium text-gray-700 uppercase tracking-tight">
+            · 핵심 키워드: {article.keywords.join(' · ')}
+          </span>
+        )}
       </div>
     </article>
   );
