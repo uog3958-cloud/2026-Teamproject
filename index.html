@@ -240,6 +240,18 @@
             text-decoration-thickness: 1px;
         }
 
+        /* 날씨 아이콘 색상 스타일 */
+        .weather-icon {
+            display: inline-block;
+            transition: color 0.3s ease, opacity 0.3s ease;
+        }
+        .weather-icon.sunny { color: #fde047; opacity: 0.75; } /* 연한 노랑 */
+        .weather-icon.cloudy { color: #828282; opacity: 1.0; } /* 흐림: 명확한 회색 채우기 대비 확보 */
+        .weather-icon.rainy { color: #94a3b8; opacity: 0.75; } /* 연한 블루-그레이 */
+        .weather-icon.snowy { color: #f1f5f9; opacity: 0.8; } /* 연한 화이트/쿨그레이 */
+
+        [data-theme='dark'] .weather-icon.cloudy { color: #C0C0C0; opacity: 1.0; } /* 다크모드 흐림 대비 확보 */
+
         /* Mobile Specific Styles (<= 768px) */
         @media (max-width: 768px) {
             body { overflow-y: auto; }

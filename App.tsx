@@ -12,6 +12,62 @@ const STYLE_OPTIONS = [
   { label: '상징적 콘셉트 이미지', value: 'concept', keywords: 'conceptual art, symbolic representation, metaphorical scene, abstract but clear meaning' }
 ];
 
+// 도시별 위경도 데이터
+const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+  '서울': { lat: 37.5665, lng: 126.9780 },
+  '부산': { lat: 35.1796, lng: 129.0756 },
+  '대구': { lat: 35.8714, lng: 128.6014 },
+  '인천': { lat: 37.4563, lng: 126.7052 },
+  '광주': { lat: 35.1595, lng: 126.8526 },
+  '대전': { lat: 36.3504, lng: 127.3845 },
+  '울산': { lat: 35.5384, lng: 129.3114 },
+  '세종': { lat: 36.4800, lng: 127.2890 },
+  '수원': { lat: 37.2636, lng: 127.0286 },
+  '춘천': { lat: 37.8813, lng: 127.7298 },
+  '청주': { lat: 36.6358, lng: 127.4912 },
+  '전주': { lat: 35.8242, lng: 127.1480 },
+  '창원': { lat: 35.2280, lng: 128.6811 },
+  '제주': { lat: 33.4996, lng: 126.5312 },
+};
+
+// 날씨 코드 매핑 (WMO)
+const getWeatherStatus = (code: number) => {
+  if (code === 0) return '맑음';
+  if (code >= 1 && code <= 3) return '흐림';
+  if (code === 45 || code === 48) return '안개';
+  if (code >= 51 && code <= 55) return '가랑비';
+  if (code >= 61 && code <= 65) return '비';
+  if (code >= 71 && code <= 75) return '눈';
+  if (code >= 80 && code <= 82) return '소나기';
+  if (code >= 95) return '뇌우';
+  return '정보없음';
+};
+
+// 날씨 아이콘 매핑
+const getWeatherIcon = (status: string) => {
+  switch (status) {
+    case '맑음': return '☀';
+    case '흐림': return '☁';
+    case '안개': return '🌫';
+    case '비':
+    case '가랑비':
+    case '소나기': return '🌧';
+    case '눈': return '❄';
+    case '뇌우': return '🌩';
+    default: return '';
+  }
+};
+
+// 날씨 상태에 따른 CSS 클래스 매핑
+const getWeatherClassName = (status: string | undefined) => {
+  if (!status) return '';
+  if (status === '맑음') return 'sunny';
+  if (status === '흐림' || status === '안개') return 'cloudy';
+  if (status.includes('비') || status === '뇌우' || status === '소나기') return 'rainy';
+  if (status === '눈') return 'snowy';
+  return '';
+};
+
 // 1. 실시간 시계 컴포넌트 분리 (App 전체 리렌더링 방지 및 스크롤 위치 유지)
 const TimeDisplay: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -36,6 +92,92 @@ const TimeDisplay: React.FC = () => {
   return (
     <div className="serif-font font-black text-gray-900 flex-shrink-0 ml-4 text-lg md:text-lg text-sm">
       {formattedTime}
+    </div>
+  );
+};
+
+// 날씨 표시 컴포넌트
+const WeatherDisplay: React.FC = () => {
+  const [location, setLocation] = useState(() => localStorage.getItem('donga_one_minute_location') || '서울');
+  const [weatherData, setWeatherData] = useState<{ status: string; temp: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const fetchWeather = async (loc: string) => {
+    setLoading(true);
+    setError(false);
+    try {
+      const coords = CITY_COORDS[loc];
+      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lng}&current_weather=true`);
+      const data = await response.json();
+      if (data.current_weather) {
+        setWeatherData({
+          status: getWeatherStatus(data.current_weather.weathercode),
+          temp: Math.round(data.current_weather.temperature)
+        });
+      } else {
+        setError(true);
+      }
+    } catch (err) {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWeather(location);
+    // 30분마다 갱신
+    const interval = setInterval(() => fetchWeather(location), 30 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [location]);
+
+  const handleLocationChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newLoc = e.target.value;
+    setLocation(newLoc);
+    localStorage.setItem('donga_one_minute_location', newLoc);
+  };
+
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <select 
+        value={location} 
+        onChange={handleLocationChange}
+        className="text-[10px] bg-transparent border-none font-bold text-gray-500 cursor-pointer focus:outline-none hover:text-gray-900 transition-colors"
+      >
+        {Object.keys(CITY_COORDS).map(city => (
+          <option key={city} value={city}>{city}</option>
+        ))}
+      </select>
+      <div className="serif-font font-medium text-gray-800 text-xs md:text-sm">
+        {loading ? (
+          "오늘의 날씨: 불러오는 중…"
+        ) : error ? (
+          "오늘의 날씨: 정보를 불러오지 못했습니다"
+        ) : (
+          <>
+            오늘의 날씨: {location} · {weatherData?.status === '흐림' ? (
+              <svg 
+                className={`weather-icon ${getWeatherClassName(weatherData.status)}`} 
+                width="18" 
+                height="18" 
+                viewBox="0 0 24 24" 
+                fill="currentColor" 
+                style={{ display: 'inline-block', verticalAlign: 'text-bottom', marginRight: '2px' }}
+              >
+                <path d="M17.5,19c3.037,0,5.5-2.463,5.5-5.5c0-2.822-2.128-5.151-4.881-5.466C17.062,5.185,14.3,3,11,3C7.54,3,4.646,5.346,3.864,8.513C2.18,9.453,1,11.23,1,13.25C1,16.425,3.575,19,6.75,19H17.5z" />
+              </svg>
+            ) : (
+              <span 
+                className={`weather-icon ${getWeatherClassName(weatherData?.status)}`} 
+                style={{ fontSize: '1.2em', verticalAlign: 'middle' }}
+              >
+                {getWeatherIcon(weatherData?.status || '')}
+              </span>
+            )} {weatherData?.status} · {weatherData?.temp}°C
+          </>
+        )}
+      </div>
     </div>
   );
 };
@@ -617,7 +759,10 @@ const App: React.FC = () => {
             <span className="text-white px-1.5 py-0.5 font-black uppercase tracking-widest flex-shrink-0" style={{ backgroundColor: ACCENT_COLOR }}>TODAY'S FOCUS</span>
             <span className="serif-font italic text-gray-700 truncate hidden md:inline">“{todaysFocus}”</span>
           </div>
-          <TimeDisplay />
+          <div className="flex flex-col items-end">
+            <TimeDisplay />
+            <WeatherDisplay />
+          </div>
         </div>
         <h1 className="text-3xl md:text-4xl font-black tracking-tighter serif-font uppercase mb-1 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setView('home')}>
           동아 일분
