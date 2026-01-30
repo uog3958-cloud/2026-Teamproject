@@ -310,12 +310,12 @@ const WeatherDisplay: React.FC<{
 // 2. 홈 화면 컴포넌트
 interface HomeViewProps {
   articles: Article[];
-  setCatIdx: (idx: number) => void;
+  onNavigateToSpread: (category: string) => void;
   setView: (view: 'home' | 'paper') => void;
   isMobile: boolean;
 }
 
-const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMobile }) => {
+const HomeView: React.FC<HomeViewProps> = ({ articles, onNavigateToSpread, setView, isMobile }) => {
   const heroArticle = articles[0];
   const gridArticles = articles.slice(1, 9);
 
@@ -324,8 +324,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10 mb-10 md:mb-16">
           <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
-            const idx = CATEGORIES.indexOf(heroArticle.category);
-            setCatIdx(idx >= 0 ? idx : 0);
+            onNavigateToSpread(heroArticle.category);
             setView('paper');
           }}>
             <div className="overflow-hidden mb-4 relative aspect-[16/9] bg-gray-100 border border-gray-200 transition-colors duration-300 article-image-container">
@@ -341,8 +340,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
             <div className="space-y-6">
               {articles.slice(5, 10).map((a, i) => (
                 <div key={i} className="cursor-pointer group" onClick={() => {
-                  const idx = CATEGORIES.indexOf(a.category);
-                  setCatIdx(idx >= 0 ? idx : 0);
+                  onNavigateToSpread(a.category);
                   setView('paper');
                 }}>
                   <span className="text-2xl font-black text-gray-200 italic mr-2 group-hover:text-black transition-colors">{i+1}</span>
@@ -357,8 +355,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
           {gridArticles.map((a, i) => (
             <div key={i} className="cursor-pointer group" onClick={() => {
-              const idx = CATEGORIES.indexOf(a.category);
-              setCatIdx(idx >= 0 ? idx : 0);
+              onNavigateToSpread(a.category);
               setView('paper');
             }}>
               <div className="aspect-video bg-gray-100 mb-3 overflow-hidden border border-gray-200 transition-colors duration-300 article-image-container">
@@ -387,10 +384,11 @@ interface NewspaperViewProps {
   onPointerDown: (e: React.PointerEvent, direction: 'next' | 'prev') => void;
   isGenerating: boolean;
   isMobile: boolean;
+  maxIdx: number;
 }
 
 const NewspaperView: React.FC<NewspaperViewProps> = ({ 
-  currentSpread, catIdx, setCatIdx, dragInfo, isAnimating, getRotation, onPointerDown, isGenerating, isMobile 
+  currentSpread, catIdx, setCatIdx, dragInfo, isAnimating, getRotation, onPointerDown, isGenerating, isMobile, maxIdx
 }) => {
   const [mobileStep, setMobileStep] = useState(0);
   const [swipeOffset, setSwipeOffset] = useState(0);
@@ -406,7 +404,7 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
     if (mobileStep === 0 && currentSpread.length > 1) {
       setMobileStep(1);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (catIdx < CATEGORIES.length - 1) {
+    } else if (catIdx < maxIdx) {
       setCatIdx((prev: number) => prev + 1);
     }
   };
@@ -468,7 +466,7 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
           <div className="page w-full min-h-[70vh]">
             <ArticleView article={currentSpread[mobileStep] || currentSpread[0]} />
             <div className="mt-8 text-center text-[10px] font-black opacity-50 uppercase tracking-widest serif-font">
-              {mobileStep === 0 && currentSpread.length > 1 ? " 옆으로 넘겨 다음 기사" : (catIdx < CATEGORIES.length - 1 ? " 옆으로 넘겨 다음 섹션" : "마지막 기사입니다")}
+              {mobileStep === 0 && currentSpread.length > 1 ? " 옆으로 넘겨 다음 기사" : (catIdx < maxIdx ? " 옆으로 넘겨 다음 섹션" : "마지막 기사입니다")}
             </div>
           </div>
         </div>
@@ -506,7 +504,7 @@ const NewspaperView: React.FC<NewspaperViewProps> = ({
         </div>
         <div className="page page-right custom-scroll">
           <ArticleView article={currentSpread[1]} />
-          {catIdx < CATEGORIES.length - 1 && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
+          {catIdx < maxIdx && <div className="hotzone hotzone-right" onPointerDown={(e) => onPointerDown(e, 'next')}><div className="fold-marker"></div></div>}
         </div>
       </div>
       {isGenerating && (
@@ -634,19 +632,32 @@ const App: React.FC = () => {
                 imageUrl: row.image_url
               };
 
+              // side 값에 따라 인덱스 매핑 (p1_left=0, p1_right=1, p2_left=2, p2_right=3)
+              const side = row.side;
+              let localIdx = -1;
+              if (side === 'p1_left' || side === 'left') localIdx = 0;
+              else if (side === 'p1_right' || side === 'right') localIdx = 1;
+              else if (side === 'p2_left') localIdx = 2;
+              else if (side === 'p2_right') localIdx = 3;
+
+              if (localIdx === -1) return;
+
               const indices = nextArticles
                 .map((a, i) => a.category === mapped.category ? i : -1)
                 .filter(i => i !== -1);
 
-              if (row.side === 'left') {
-                if (indices.length > 0) nextArticles[indices[0]] = mapped;
-                else nextArticles.unshift(mapped);
-              } else if (row.side === 'right') {
-                if (indices.length > 1) nextArticles[indices[1]] = mapped;
-                else if (indices.length === 1) nextArticles.splice(indices[0] + 1, 0, mapped);
-                else nextArticles.push(mapped);
+              if (indices[localIdx] !== undefined) {
+                nextArticles[indices[localIdx]] = mapped;
+              } else {
+                // 비어있는 곳 채우기 (데이터 순서 보정)
+                const categoryArticles = nextArticles.filter(a => a.category === mapped.category);
+                if (categoryArticles.length < localIdx) {
+                    // 중간에 구멍이 난 경우 패딩은 하지 않음 (트리거가 보장한다고 가정)
+                }
+                nextArticles.push(mapped);
               }
             });
+            // 카테고리별로 정렬 보장 필요 시 로직 추가 가능
             return nextArticles;
           });
         }
@@ -658,20 +669,42 @@ const App: React.FC = () => {
     fetchArticlesFromDB();
   }, []);
 
+  const allSpreads = useMemo(() => {
+    const spreads: { category: string; articles: Article[] }[] = [];
+    CATEGORIES.forEach(cat => {
+      const filtered = articles.filter(a => a.category === cat);
+      
+      // Page 1 Spread
+      spreads.push({
+        category: cat,
+        articles: [
+          filtered[0] || ARTICLES_DATA.find(a => a.category === cat) || ARTICLES_DATA[0],
+          filtered[1] || (filtered[0] ? ARTICLES_DATA.find(a => a.category === cat && a.title !== filtered[0].title) : null) || ARTICLES_DATA[1] || ARTICLES_DATA[0]
+        ]
+      });
+
+      // Page 2 Spread (only if more than 2 articles exist)
+      if (filtered.length > 2) {
+        spreads.push({
+          category: cat,
+          articles: [
+            filtered[2],
+            filtered[3] // filtered[3] can be undefined
+          ]
+        });
+      }
+    });
+    return spreads;
+  }, [articles]);
+
+  const currentSpreadData = useMemo(() => {
+    return allSpreads[catIdx] || allSpreads[0];
+  }, [allSpreads, catIdx]);
+
   const todaysFocus = useMemo(() => {
     const mainArticle = articles[0];
     return mainArticle ? mainArticle.title : "새로운 시대를 여는 동아 일분";
   }, [articles]);
-
-  const currentCategory = CATEGORIES[catIdx];
-  const currentSpread = useMemo(() => {
-    const filtered = articles.filter(a => a.category === currentCategory);
-    
-    const leftArticle = filtered[0] || ARTICLES_DATA.find(a => a.category === currentCategory) || ARTICLES_DATA[0];
-    const rightArticle = filtered[1] || (filtered[0] ? ARTICLES_DATA.find(a => a.category === currentCategory && a.title !== filtered[0].title) : null) || ARTICLES_DATA[1] || ARTICLES_DATA[0];
-    
-    return [leftArticle, rightArticle];
-  }, [articles, currentCategory]);
 
   const cleanText = (text: string) => {
     if (typeof text !== 'string') return '';
@@ -739,22 +772,13 @@ const App: React.FC = () => {
         retries++;
       }
 
-      if (!generatedData) {
-        generatedData = {
-          title: trimmedTitle,
-          shortBody: trimmedBody.slice(0, 200),
-          keywords: [],
-          image: { prompt: `Professional news photo about ${trimmedTitle}`, alt: trimmedTitle },
-          sourceName: trimmedSource || '익명',
-          category: currentCategory
-        };
-      }
+      const targetCategory = (generatedData?.category as any) || CATEGORIES[0];
 
-      const targetCategory = (generatedData.category as any) || currentCategory;
-
-      // 기존 왼쪽 기사 캡처
-      const targetSameCategory = articles.filter(a => a.category === targetCategory);
-      const prevLeft = targetSameCategory[0] || null;
+      // 기존 4칸 캡처
+      const sameCategoryArticles = articles.filter(a => a.category === targetCategory);
+      const prev1L = sameCategoryArticles[0] || null;
+      const prev1R = sameCategoryArticles[1] || null;
+      const prev2L = sameCategoryArticles[2] || null;
 
       // 텍스트 기사 객체 선행 생성 (이미지 없음)
       const textOnlyArticle: Article = {
@@ -768,24 +792,18 @@ const App: React.FC = () => {
         sourceName: cleanText(generatedData.sourceName),
         sourceUrl: '#',
         imageAlt: cleanText(generatedData.image.alt),
-        imageUrl: undefined, // 이미지 생성 전
+        imageUrl: undefined,
       };
 
-      // 기사 목록 즉시 업데이트 (체감 속도 개선)
+      // 기사 목록 즉시 업데이트 (Shift 규칙 적용)
       setArticles(prev => {
-        const sameCategory = prev.filter(a => a.category === targetCategory);
         const otherCategories = prev.filter(a => a.category !== targetCategory);
         
-        // 새 기사를 왼쪽[0]에, 기존 왼쪽을 오른쪽[1]에 배치
+        // p1_left = new, p1_right = old p1_L, p2_left = old p1_R, p2_right = old p2_L
         const updatedSameCategory = [textOnlyArticle];
-        if (prevLeft) updatedSameCategory.push(prevLeft);
-        
-        // 나머지 기사들 (있을 경우) 추가
-        if (sameCategory.length > 1) {
-            const rest = sameCategory.filter(a => a.title !== prevLeft?.title);
-            // slice(1) 등을 쓰지 않고 안전하게 필터링하여 추가 (spread 유지 로직)
-            // 사실 filtered[1] 이 prevLeft 와 다를 경우만 추가하는 식
-        }
+        if (prev1L) updatedSameCategory.push(prev1L);
+        if (prev1R) updatedSameCategory.push(prev1R);
+        if (prev2L) updatedSameCategory.push(prev2L);
 
         return [...updatedSameCategory, ...otherCategories];
       });
@@ -793,10 +811,10 @@ const App: React.FC = () => {
       // UI 즉시 전환
       setForm({ title: '', body: '', source: '', imageStyle: 'photo' });
       setIsEditorOpen(false);
-      setIsGenerating(false); // 텍스트 로딩 종료
+      setIsGenerating(false);
       
-      const targetIdx = CATEGORIES.indexOf(targetCategory);
-      if (targetIdx !== -1) setCatIdx(targetIdx);
+      const firstSpreadIdx = allSpreads.findIndex(s => s.category === targetCategory);
+      if (firstSpreadIdx !== -1) setCatIdx(firstSpreadIdx);
       setView('paper');
 
       // 단계 2: 이미지 백그라운드 생성 (비동기)
@@ -822,40 +840,31 @@ const App: React.FC = () => {
 
           if (generatedImageUrl) {
             const finalArticle = { ...textOnlyArticle, imageUrl: generatedImageUrl };
-            // 이미지 업데이트
             setArticles(prev => prev.map(a => 
               (a.title === finalArticle.title && a.category === finalArticle.category) 
               ? finalArticle 
               : a
             ));
 
-            // 기사 저장 연동 (텍스트 + 이미지가 모두 준비된 시점)
             if (supabase) {
               const today = new Date().toISOString().split('T')[0];
-              
-              // 1) 기존 왼쪽 기사를 오른쪽으로 이동 (side='right')
-              if (prevLeft) {
+              const upsertData = async (article: Article, side: string) => {
                 await supabase.from('articles').upsert({
                   date: today,
                   theme: targetCategory,
-                  side: 'right',
-                  title: prevLeft.title,
-                  content: prevLeft.shortBody,
-                  source_text: prevLeft.sourceName,
-                  image_url: prevLeft.imageUrl
+                  side: side,
+                  title: article.title,
+                  content: article.shortBody,
+                  source_text: article.sourceName,
+                  image_url: article.imageUrl
                 }, { onConflict: 'date,theme,side' });
-              }
+              };
 
-              // 2) 새로 생성된 기사를 왼쪽으로 저장 (side='left')
-              await supabase.from('articles').upsert({
-                date: today,
-                theme: targetCategory,
-                side: 'left',
-                title: finalArticle.title,
-                content: finalArticle.shortBody,
-                source_text: finalArticle.sourceName,
-                image_url: finalArticle.imageUrl
-              }, { onConflict: 'date,theme,side' });
+              // 역순으로 upsert (p2_right -> p2_left -> p1_right -> p1_left)
+              if (prev2L) await upsertData(prev2L, 'p2_right');
+              if (prev1R) await upsertData(prev1R, 'p2_left');
+              if (prev1L) await upsertData(prev1L, 'p1_right');
+              await upsertData(finalArticle, 'p1_left');
             }
           }
         } catch (imgError) {
@@ -893,7 +902,7 @@ const App: React.FC = () => {
 
       if (isSuccess) {
         const nextDir = dragInfo.direction === 'next' ? 1 : -1;
-        const canFlip = (nextDir === 1 && catIdx < CATEGORIES.length - 1) || (nextDir === -1 && catIdx > 0);
+        const canFlip = (nextDir === 1 && catIdx < allSpreads.length - 1) || (nextDir === -1 && catIdx > 0);
         setIsAnimating(true);
         setTimeout(() => {
           if (canFlip) setCatIdx(prev => prev + nextDir);
@@ -921,7 +930,7 @@ const App: React.FC = () => {
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [dragInfo, catIdx, isAnimating, isMagnifierOn, isMobile]);
+  }, [dragInfo, catIdx, allSpreads, isAnimating, isMagnifierOn, isMobile]);
 
   const getRotation = () => {
     if (!dragInfo.active || isMobile) return 0;
@@ -931,6 +940,11 @@ const App: React.FC = () => {
     if (dragInfo.direction === 'next') rotate = Math.max(-180, Math.min(0, rotate));
     else rotate = Math.max(0, Math.min(180, rotate));
     return rotate;
+  };
+
+  const onNavigateToSpread = (category: string) => {
+    const idx = allSpreads.findIndex(s => s.category === category);
+    if (idx !== -1) setCatIdx(idx);
   };
 
   const renderSharedNav = () => (
@@ -1035,11 +1049,15 @@ const App: React.FC = () => {
               </button>
             )}
             <div className="flex justify-start md:justify-center gap-4 md:gap-6 overflow-x-auto no-scrollbar scroll-smooth">
-              {CATEGORIES.map((cat, idx) => (
-                <button key={cat} onClick={() => { if (!isGenerating) { setCatIdx(idx); setView('paper'); } }} className={`text-[10px] md:text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter hover:opacity-70`} style={{ color: (catIdx === idx && view === 'paper') ? ACCENT_COLOR : '#9ca3af', borderBottom: (catIdx === idx && view === 'paper') ? `2px solid ${ACCENT_COLOR}` : 'none' }}>
-                  {cat}
-                </button>
-              ))}
+              {CATEGORIES.map((cat) => {
+                const spreadIdx = allSpreads.findIndex(s => s.category === cat);
+                const isActive = allSpreads[catIdx]?.category === cat;
+                return (
+                  <button key={cat} onClick={() => { if (!isGenerating && spreadIdx !== -1) { setCatIdx(spreadIdx); setView('paper'); } }} className={`text-[10px] md:text-xs font-bold whitespace-nowrap transition-all uppercase tracking-tighter hover:opacity-70`} style={{ color: (isActive && view === 'paper') ? ACCENT_COLOR : '#9ca3af', borderBottom: (isActive && view === 'paper') ? `2px solid ${ACCENT_COLOR}` : 'none' }}>
+                    {cat}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <button onClick={() => setIsEditorOpen(true)} className="text-white px-3 md:px-4 py-1.5 text-[9px] md:text-[10px] font-black uppercase hover:opacity-90 transition-colors whitespace-nowrap ml-2" style={{ backgroundColor: ACCENT_COLOR }}>기사 쓰기</button>
@@ -1055,9 +1073,20 @@ const App: React.FC = () => {
     <div className={`flex flex-col ${isMobile ? 'min-h-screen overflow-y-auto' : 'h-screen overflow-hidden'} bg-[#d1d5db] transition-colors duration-300`}>
       {renderSharedNav()}
       {view === 'home' ? (
-        <HomeView articles={articles} setCatIdx={setCatIdx} setView={setView} isMobile={isMobile} />
+        <HomeView articles={articles} onNavigateToSpread={onNavigateToSpread} setView={setView} isMobile={isMobile} />
       ) : (
-        <NewspaperView currentSpread={currentSpread} catIdx={catIdx} setCatIdx={setCatIdx} dragInfo={dragInfo} isAnimating={isAnimating} getRotation={getRotation} onPointerDown={onPointerDown} isGenerating={isGenerating} isMobile={isMobile} />
+        <NewspaperView 
+          currentSpread={currentSpreadData.articles} 
+          catIdx={catIdx} 
+          setCatIdx={setCatIdx} 
+          dragInfo={dragInfo} 
+          isAnimating={isAnimating} 
+          getRotation={getRotation} 
+          onPointerDown={onPointerDown} 
+          isGenerating={isGenerating} 
+          isMobile={isMobile} 
+          maxIdx={allSpreads.length - 1}
+        />
       )}
     </div>
   );
