@@ -6,10 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const ACCENT_COLOR = '#0AA8A6';
 
-// Supabase 클라이언트 설정 (환경 변수 사용 및 에러 방지를 위한 조건부 초기화)
-const SUPABASE_URL = process.env.SUPABASE_URL || '';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
-const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+// Supabase 클라이언트 설정 (제공된 URL과 키 사용)
+const SUPABASE_URL = 'https://ssxfmvzrvpngrpugghfk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_DmlfzVNDPajtoTe4dwd6pg_sb07tqo1';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const STYLE_OPTIONS = [
   { label: '실사 뉴스 (기본값)', value: 'photo', keywords: 'photojournalism, realistic lighting, news photography, documentary style' },
