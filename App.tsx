@@ -700,13 +700,15 @@ const App: React.FC = () => {
       while (retries <= MAX_RETRIES) {
         const textResponse = await ai.models.generateContent({
           model: 'gemini-3-pro-preview',
-          contents: `입력 내용을 바탕으로 전문적인 신문 기사 헤드라인과 요약 본문을 한국어로 작성하세요.
+          contents: `입력 내용을 바탕으로 전문적인 신문 기사 헤드라인과 요약 본문을 한국어로 작성하세요. 
+          또한 기사 내용을 분석하여 다음 중 가장 적절한 카테고리 하나를 자동으로 분류하세요: 국내, 해외, 경제, 스포츠, 엔터.
           
           제약 조건:
           1. "title": 18자~32자 사이의 강렬한 헤드라인.
           2. "shortBody": 띄어쓰기 포함 반드시 200자 이내. 줄바꿈 없이 단일 문단으로 구성.
           3. 원문을 그대로 복사하지 말고 새로운 문장으로 재구성.
           4. "keywords": 기사 내용을 대표하는 핵심 단어 3~5개를 배열 형태로 생성.
+          5. "category": 반드시 '국내', '해외', '경제', '스포츠', '엔터' 중 하나로만 반환.
           
           반드시 아래 JSON 구조로만 응답하세요:
           {
@@ -717,7 +719,8 @@ const App: React.FC = () => {
               "prompt": "Detailed English prompt for a professional photo related to this topic",
               "alt": "Korean image description"
             },
-            "sourceName": "출처명"
+            "sourceName": "출처명",
+            "category": "분류된 카테고리 단어 하나"
           }
 
           입력 제목: ${trimmedTitle}
@@ -741,7 +744,8 @@ const App: React.FC = () => {
           shortBody: trimmedBody.slice(0, 200),
           keywords: [],
           image: { prompt: `Professional news photo about ${trimmedTitle}`, alt: trimmedTitle },
-          sourceName: trimmedSource || '익명'
+          sourceName: trimmedSource || '익명',
+          category: currentCategory
         };
       }
 
@@ -763,8 +767,10 @@ const App: React.FC = () => {
         }
       }
 
+      const targetCategory = (generatedData.category as any) || currentCategory;
+
       const newArticle: Article = {
-        category: currentCategory,
+        category: targetCategory,
         title: cleanText(generatedData.title),
         lead: '', 
         shortBody: cleanText(generatedData.shortBody).slice(0, 200),
@@ -782,7 +788,7 @@ const App: React.FC = () => {
         try {
           await supabase.from('articles').upsert({
             date: new Date().toISOString().split('T')[0],
-            theme: currentCategory,
+            theme: targetCategory,
             side: 'left', // 새로 생성되는 기사는 지면의 첫 번째(왼쪽)에 위치
             title: newArticle.title,
             content: newArticle.shortBody,
@@ -795,8 +801,8 @@ const App: React.FC = () => {
       }
 
       setArticles(prev => {
-        const sameCategory = prev.filter(a => a.category === currentCategory);
-        const otherCategories = prev.filter(a => a.category !== currentCategory);
+        const sameCategory = prev.filter(a => a.category === targetCategory);
+        const otherCategories = prev.filter(a => a.category !== targetCategory);
         
         let updatedSameCategory = [];
         if (sameCategory.length >= 2) {
@@ -812,6 +818,10 @@ const App: React.FC = () => {
 
       setForm({ title: '', body: '', source: '', imageStyle: 'photo' });
       setIsEditorOpen(false);
+      
+      // 자동 분류된 카테고리로 이동하여 지면 확인
+      const targetIdx = CATEGORIES.indexOf(targetCategory);
+      if (targetIdx !== -1) setCatIdx(targetIdx);
       setView('paper');
     } catch (error) {
       console.error(error);
@@ -980,6 +990,7 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2 md:gap-4 flex-grow overflow-hidden">
             {!isMobile && (
               <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
+                {/* Changed duplicate x1 to y1 in the line element below */}
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               </button>
             )}
