@@ -697,6 +697,7 @@ const App: React.FC = () => {
       let retries = 0;
       const MAX_RETRIES = 2;
 
+      // 단계 1: 텍스트 생성 + 카테고리 자동 분류
       while (retries <= MAX_RETRIES) {
         const textResponse = await ai.models.generateContent({
           model: 'gemini-3-pro-preview',
@@ -749,27 +750,10 @@ const App: React.FC = () => {
         };
       }
 
-      const selectedStyle = STYLE_OPTIONS.find(opt => opt.value === form.imageStyle);
-      const enhancedImagePrompt = `${generatedData.image.prompt}. Style: ${selectedStyle?.keywords}`;
-
-      const imageResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: { parts: [{ text: enhancedImagePrompt }] }
-      });
-
-      let generatedImageUrl = '';
-      if (imageResponse.candidates?.[0]?.content?.parts) {
-        for (const part of imageResponse.candidates[0].content.parts) {
-          if (part.inlineData) {
-            generatedImageUrl = `data:image/png;base64,${part.inlineData.data}`;
-            break;
-          }
-        }
-      }
-
       const targetCategory = (generatedData.category as any) || currentCategory;
 
-      const newArticle: Article = {
+      // 텍스트 기사 객체 선행 생성 (이미지 없음)
+      const textOnlyArticle: Article = {
         category: targetCategory,
         title: cleanText(generatedData.title),
         lead: '', 
@@ -780,53 +764,87 @@ const App: React.FC = () => {
         sourceName: cleanText(generatedData.sourceName),
         sourceUrl: '#',
         imageAlt: cleanText(generatedData.image.alt),
-        imageUrl: generatedImageUrl || undefined,
+        imageUrl: undefined, // 이미지 생성 전
       };
 
-      // UI 변경 없이 백엔드 저장 로직만 추가 (upsert 기준: date, theme, side)
-      if (supabase) {
-        try {
-          await supabase.from('articles').upsert({
-            date: new Date().toISOString().split('T')[0],
-            theme: targetCategory,
-            side: 'left', // 새로 생성되는 기사는 지면의 첫 번째(왼쪽)에 위치
-            title: newArticle.title,
-            content: newArticle.shortBody,
-            source_text: newArticle.sourceName,
-            image_url: newArticle.imageUrl
-          }, { onConflict: 'date,theme,side' });
-        } catch (dbError) {
-          console.error("DB 저장 오류:", dbError);
-        }
-      }
-
+      // 기사 목록 즉시 업데이트 (체감 속도 개선)
       setArticles(prev => {
         const sameCategory = prev.filter(a => a.category === targetCategory);
         const otherCategories = prev.filter(a => a.category !== targetCategory);
         
         let updatedSameCategory = [];
         if (sameCategory.length >= 2) {
-          updatedSameCategory = [newArticle, sameCategory[1], ...sameCategory.slice(2)];
+          updatedSameCategory = [textOnlyArticle, sameCategory[1], ...sameCategory.slice(2)];
         } else if (sameCategory.length === 1) {
-          updatedSameCategory = [newArticle, sameCategory[0]];
+          updatedSameCategory = [textOnlyArticle, sameCategory[0]];
         } else {
-          updatedSameCategory = [newArticle];
+          updatedSameCategory = [textOnlyArticle];
         }
 
         return [...updatedSameCategory, ...otherCategories];
       });
 
+      // UI 즉시 전환
       setForm({ title: '', body: '', source: '', imageStyle: 'photo' });
       setIsEditorOpen(false);
+      setIsGenerating(false); // 텍스트 로딩 종료
       
-      // 자동 분류된 카테고리로 이동하여 지면 확인
       const targetIdx = CATEGORIES.indexOf(targetCategory);
       if (targetIdx !== -1) setCatIdx(targetIdx);
       setView('paper');
+
+      // 단계 2: 이미지 백그라운드 생성 (비동기)
+      const selectedStyle = STYLE_OPTIONS.find(opt => opt.value === form.imageStyle);
+      const enhancedImagePrompt = `${generatedData.image.prompt}. Style: ${selectedStyle?.keywords}`;
+
+      const generateAndSyncImage = async () => {
+        try {
+          const imageResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image',
+            contents: { parts: [{ text: enhancedImagePrompt }] }
+          });
+
+          let generatedImageUrl = '';
+          if (imageResponse.candidates?.[0]?.content?.parts) {
+            for (const part of imageResponse.candidates[0].content.parts) {
+              if (part.inlineData) {
+                generatedImageUrl = `data:image/png;base64,${part.inlineData.data}`;
+                break;
+              }
+            }
+          }
+
+          if (generatedImageUrl) {
+            // 이미지 업데이트
+            setArticles(prev => prev.map(a => 
+              (a.title === textOnlyArticle.title && a.category === textOnlyArticle.category) 
+              ? { ...a, imageUrl: generatedImageUrl } 
+              : a
+            ));
+
+            // 기사 저장 연동 (텍스트 + 이미지 모두 준비된 시점)
+            if (supabase) {
+              await supabase.from('articles').upsert({
+                date: new Date().toISOString().split('T')[0],
+                theme: targetCategory,
+                side: 'left',
+                title: textOnlyArticle.title,
+                content: textOnlyArticle.shortBody,
+                source_text: textOnlyArticle.sourceName,
+                image_url: generatedImageUrl
+              }, { onConflict: 'date,theme,side' });
+            }
+          }
+        } catch (imgError) {
+          console.error("이미지 생성 또는 저장 오류:", imgError);
+        }
+      };
+
+      generateAndSyncImage();
+
     } catch (error) {
       console.error(error);
       alert("기사 생성 중 오류가 발생했습니다.");
-    } finally {
       setIsGenerating(false);
     }
   };
@@ -990,7 +1008,6 @@ const App: React.FC = () => {
           <div className="flex items-center gap-2 md:gap-4 flex-grow overflow-hidden">
             {!isMobile && (
               <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
-                {/* Changed duplicate x1 to y1 in the line element below */}
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               </button>
             )}
