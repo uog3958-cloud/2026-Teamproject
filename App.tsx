@@ -6,10 +6,10 @@ import { createClient } from "@supabase/supabase-js";
 
 const ACCENT_COLOR = '#0AA8A6';
 
-// Supabase 클라이언트 설정
-const SUPABASE_URL = 'https://ssxfmvzrvpngrpugghfk.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_DmlfzVNDPajtoTe4dwd6pg_sb07tqo1';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Supabase 클라이언트 설정 (환경 변수 사용 및 에러 방지를 위한 조건부 초기화)
+const SUPABASE_URL = process.env.SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || '';
+const supabase = (SUPABASE_URL && SUPABASE_ANON_KEY) ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const STYLE_OPTIONS = [
   { label: '실사 뉴스 (기본값)', value: 'photo', keywords: 'photojournalism, realistic lighting, news photography, documentary style' },
@@ -600,6 +600,64 @@ const App: React.FC = () => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // 초기 로딩 시 Supabase에서 오늘 날짜의 기사 불러오기
+  useEffect(() => {
+    const fetchArticlesFromDB = async () => {
+      if (!supabase) return;
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const { data, error } = await supabase
+          .from('articles')
+          .select('*')
+          .eq('date', today);
+
+        if (error) {
+          console.error("Supabase fetch error:", error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          setArticles(prev => {
+            const nextArticles = [...prev];
+            data.forEach((row: any) => {
+              const mapped: Article = {
+                category: row.theme as any,
+                title: row.title,
+                lead: '',
+                shortBody: row.content,
+                body: '',
+                contextBox: '',
+                keywords: [],
+                sourceName: row.source_text,
+                sourceUrl: '#',
+                imageAlt: row.title,
+                imageUrl: row.image_url
+              };
+
+              const indices = nextArticles
+                .map((a, i) => a.category === mapped.category ? i : -1)
+                .filter(i => i !== -1);
+
+              if (row.side === 'left') {
+                if (indices.length > 0) nextArticles[indices[0]] = mapped;
+                else nextArticles.unshift(mapped);
+              } else if (row.side === 'right') {
+                if (indices.length > 1) nextArticles[indices[1]] = mapped;
+                else if (indices.length === 1) nextArticles.splice(indices[0] + 1, 0, mapped);
+                else nextArticles.push(mapped);
+              }
+            });
+            return nextArticles;
+          });
+        }
+      } catch (err) {
+        console.error("Initial load DB fetch error:", err);
+      }
+    };
+
+    fetchArticlesFromDB();
+  }, []);
+
   const todaysFocus = useMemo(() => {
     const mainArticle = articles[0];
     return mainArticle ? mainArticle.title : "새로운 시대를 여는 동아 일분";
@@ -720,18 +778,20 @@ const App: React.FC = () => {
       };
 
       // UI 변경 없이 백엔드 저장 로직만 추가 (upsert 기준: date, theme, side)
-      try {
-        await supabase.from('articles').upsert({
-          date: new Date().toISOString().split('T')[0],
-          theme: currentCategory,
-          side: 'left', // 새로 생성되는 기사는 지면의 첫 번째(왼쪽)에 위치
-          title: newArticle.title,
-          content: newArticle.shortBody,
-          source_text: newArticle.sourceName,
-          image_url: newArticle.imageUrl
-        }, { onConflict: 'date,theme,side' });
-      } catch (dbError) {
-        console.error("DB 저장 오류:", dbError);
+      if (supabase) {
+        try {
+          await supabase.from('articles').upsert({
+            date: new Date().toISOString().split('T')[0],
+            theme: currentCategory,
+            side: 'left', // 새로 생성되는 기사는 지면의 첫 번째(왼쪽)에 위치
+            title: newArticle.title,
+            content: newArticle.shortBody,
+            source_text: newArticle.sourceName,
+            image_url: newArticle.imageUrl
+          }, { onConflict: 'date,theme,side' });
+        } catch (dbError) {
+          console.error("DB 저장 오류:", dbError);
+        }
       }
 
       setArticles(prev => {
