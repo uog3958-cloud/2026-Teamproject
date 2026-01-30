@@ -53,11 +53,11 @@
             transition: background 1s ease;
         }
 
-        /* 비(Rainy) 빗방울 입자 스타일 */
+        /* 비(Rainy) 빗방울 입자 스타일 - 가시성 개선을 위해 진하게 조정 */
         .raindrop {
             position: fixed;
             top: -20px;
-            background: rgba(120, 170, 200, 0.4);
+            background: rgba(95, 145, 175, 0.55);
             border-radius: 2px;
             pointer-events: none;
             z-index: 210;
@@ -246,7 +246,7 @@
         .custom-scroll::-webkit-scrollbar-thumb { background: #000; border-radius: 10px; }
 
         [data-theme='dark'] .bg-white,
-        [data-theme='dark'] .bg-\[\#f7f7f5\] { background-color: var(--bg-panel) !important; }
+        [data-theme='dark'] .bg-\[\#fbfbf7\] { background-color: var(--bg-panel) !important; }
         [data-theme='dark'] .bg-\[\#d1d5db\] { background-color: var(--bg-body) !important; }
         [data-theme='dark'] .text-gray-900, 
         [data-theme='dark'] .text-gray-800,
@@ -291,15 +291,24 @@
 
         [data-theme='dark'] .weather-icon.cloudy { color: #C0C0C0; opacity: 1.0; }
 
-        /* 눈(Snowy) 입자 애니메이션 */
+        /* 눈(Snowy) 입자 애니메이션 - 눈 결정 모양으로 명확히 인식되도록 수정 */
         .snowflake {
             position: fixed;
-            top: -10px;
-            background: white;
-            border-radius: 50%;
+            top: -20px;
+            color: rgba(245, 245, 245, 0.85);
+            /* 흰 배경에서도 보이도록 검은색 테두리 효과 추가 */
+            text-shadow: 
+                -1px -1px 0 rgba(0,0,0,0.15),  
+                 1px -1px 0 rgba(0,0,0,0.15),
+                -1px  1px 0 rgba(0,0,0,0.15),
+                 1px  1px 0 rgba(0,0,0,0.15);
             pointer-events: none;
             z-index: 200;
+            line-height: 1;
             animation: snowfall linear infinite;
+        }
+        [data-theme='dark'] .snowflake {
+            text-shadow: 0 0 2px rgba(0,0,0,0.5);
         }
 
         /* 이미지 하단 눈 쌓임 효과 */
@@ -373,7 +382,8 @@
     "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "react/": "https://esm.sh/react@18.2.0/",
     "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
   }
 }
 </script>

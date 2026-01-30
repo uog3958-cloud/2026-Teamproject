@@ -2,8 +2,14 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { CATEGORIES, Article } from './types';
 import { ARTICLES_DATA } from './constants';
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
 
 const ACCENT_COLOR = '#0AA8A6';
+
+// Supabase 클라이언트 설정
+const SUPABASE_URL = 'https://ssxfmvzrvpngrpugghfk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_DmlfzVNDPajtoTe4dwd6pg_sb07tqo1';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const STYLE_OPTIONS = [
   { label: '실사 뉴스 (기본값)', value: 'photo', keywords: 'photojournalism, realistic lighting, news photography, documentary style' },
@@ -107,28 +113,31 @@ const RainEffect: React.FC = () => {
   return <div className="fixed inset-0 pointer-events-none z-[200] overflow-hidden">{raindrops}</div>;
 };
 
-// 눈 내림 효과 컴포넌트
+// 눈 내림 효과 컴포넌트 - 눈 결정(snowflake) 형태로 수정
 const SnowEffect: React.FC = () => {
   const snowflakes = useMemo(() => {
-    return Array.from({ length: 30 }).map((_, i) => {
-      const size = Math.random() * 3 + 2; // 2~5px
+    // 입자 개수 조정 (기존보다 줄임: 15~22개 수준)
+    return Array.from({ length: 18 }).map((_, i) => {
+      // 눈 결정 크기 미세 상향 (10~18px 범위)
+      const size = 10 + Math.random() * 8; 
       const left = Math.random() * 100; // 0~100%
-      const duration = Math.random() * 5 + 10; // 10~15s
+      const duration = Math.random() * 5 + 10; // 10~15s (천천히)
       const delay = Math.random() * 10;
-      const opacity = Math.random() * 0.3 + 0.2; // 0.2~0.5
+      const opacity = Math.random() * 0.4 + 0.4; // 0.4~0.8
       return (
         <div
           key={i}
           className="snowflake"
           style={{
-            width: `${size}px`,
-            height: `${size}px`,
+            fontSize: `${size}px`,
             left: `${left}%`,
             animationDuration: `${duration}s`,
             animationDelay: `${delay}s`,
             opacity: opacity,
           }}
-        />
+        >
+          ❄
+        </div>
       );
     });
   }, []);
@@ -311,7 +320,7 @@ const HomeView: React.FC<HomeViewProps> = ({ articles, setCatIdx, setView, isMob
   const gridArticles = articles.slice(1, 9);
 
   return (
-    <div className="flex-grow overflow-y-auto bg-[#f7f7f5] custom-scroll transition-colors duration-300">
+    <div className="flex-grow overflow-y-auto bg-[#fbfbf7] custom-scroll transition-colors duration-300">
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-10">
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-10 mb-10 md:mb-16">
           <div className="lg:col-span-2 cursor-pointer group" onClick={() => {
@@ -710,6 +719,21 @@ const App: React.FC = () => {
         imageUrl: generatedImageUrl || undefined,
       };
 
+      // UI 변경 없이 백엔드 저장 로직만 추가 (upsert 기준: date, theme, side)
+      try {
+        await supabase.from('articles').upsert({
+          date: new Date().toISOString().split('T')[0],
+          theme: currentCategory,
+          side: 'left', // 새로 생성되는 기사는 지면의 첫 번째(왼쪽)에 위치
+          title: newArticle.title,
+          content: newArticle.shortBody,
+          source_text: newArticle.sourceName,
+          image_url: newArticle.imageUrl
+        }, { onConflict: 'date,theme,side' });
+      } catch (dbError) {
+        console.error("DB 저장 오류:", dbError);
+      }
+
       setArticles(prev => {
         const sameCategory = prev.filter(a => a.category === currentCategory);
         const otherCategories = prev.filter(a => a.category !== currentCategory);
@@ -859,7 +883,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <header className="bg-[#f7f7f5] border-b-4 px-4 md:px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
+      <header className="bg-[#fbfbf7] border-b-4 px-4 md:px-8 py-4 flex flex-col items-center shrink-0 z-50 transition-colors duration-300" style={{ borderBottomColor: ACCENT_COLOR }}>
         <div className="w-full max-w-6xl flex justify-between items-center mb-3 text-[9px] font-bold text-gray-500 tracking-tight border-b border-gray-100 pb-1 transition-colors duration-300">
           <div className="flex items-center gap-2 overflow-hidden">
             <button 
@@ -891,12 +915,12 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <nav className="bg-[#f7f7f5] border-b border-black shrink-0 z-40 transition-colors duration-300">
+      <nav className="bg-[#fbfbf7] border-b border-black shrink-0 z-40 transition-colors duration-300">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 py-2">
           <div className="flex items-center gap-2 md:gap-4 flex-grow overflow-hidden">
             {!isMobile && (
               <button onClick={() => setIsMagnifierOn(!isMagnifierOn)} className={`p-1.5 transition-all border-2 ${isMagnifierOn ? 'text-white border-transparent shadow-inner scale-95' : 'bg-white text-black border-transparent hover:border-gray-300'}`} style={{ backgroundColor: isMagnifierOn ? ACCENT_COLOR : undefined }} title="돋보기 모드 (Esc로 해제)">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               </button>
             )}
             <div className="flex justify-start md:justify-center gap-4 md:gap-6 overflow-x-auto no-scrollbar scroll-smooth">
