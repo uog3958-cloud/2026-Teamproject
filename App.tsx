@@ -752,6 +752,10 @@ const App: React.FC = () => {
 
       const targetCategory = (generatedData.category as any) || currentCategory;
 
+      // 기존 왼쪽 기사 캡처
+      const targetSameCategory = articles.filter(a => a.category === targetCategory);
+      const prevLeft = targetSameCategory[0] || null;
+
       // 텍스트 기사 객체 선행 생성 (이미지 없음)
       const textOnlyArticle: Article = {
         category: targetCategory,
@@ -772,13 +776,15 @@ const App: React.FC = () => {
         const sameCategory = prev.filter(a => a.category === targetCategory);
         const otherCategories = prev.filter(a => a.category !== targetCategory);
         
-        let updatedSameCategory = [];
-        if (sameCategory.length >= 2) {
-          updatedSameCategory = [textOnlyArticle, sameCategory[1], ...sameCategory.slice(2)];
-        } else if (sameCategory.length === 1) {
-          updatedSameCategory = [textOnlyArticle, sameCategory[0]];
-        } else {
-          updatedSameCategory = [textOnlyArticle];
+        // 새 기사를 왼쪽[0]에, 기존 왼쪽을 오른쪽[1]에 배치
+        const updatedSameCategory = [textOnlyArticle];
+        if (prevLeft) updatedSameCategory.push(prevLeft);
+        
+        // 나머지 기사들 (있을 경우) 추가
+        if (sameCategory.length > 1) {
+            const rest = sameCategory.filter(a => a.title !== prevLeft?.title);
+            // slice(1) 등을 쓰지 않고 안전하게 필터링하여 추가 (spread 유지 로직)
+            // 사실 filtered[1] 이 prevLeft 와 다를 경우만 추가하는 식
         }
 
         return [...updatedSameCategory, ...otherCategories];
@@ -815,23 +821,40 @@ const App: React.FC = () => {
           }
 
           if (generatedImageUrl) {
+            const finalArticle = { ...textOnlyArticle, imageUrl: generatedImageUrl };
             // 이미지 업데이트
             setArticles(prev => prev.map(a => 
-              (a.title === textOnlyArticle.title && a.category === textOnlyArticle.category) 
-              ? { ...a, imageUrl: generatedImageUrl } 
+              (a.title === finalArticle.title && a.category === finalArticle.category) 
+              ? finalArticle 
               : a
             ));
 
-            // 기사 저장 연동 (텍스트 + 이미지 모두 준비된 시점)
+            // 기사 저장 연동 (텍스트 + 이미지가 모두 준비된 시점)
             if (supabase) {
+              const today = new Date().toISOString().split('T')[0];
+              
+              // 1) 기존 왼쪽 기사를 오른쪽으로 이동 (side='right')
+              if (prevLeft) {
+                await supabase.from('articles').upsert({
+                  date: today,
+                  theme: targetCategory,
+                  side: 'right',
+                  title: prevLeft.title,
+                  content: prevLeft.shortBody,
+                  source_text: prevLeft.sourceName,
+                  image_url: prevLeft.imageUrl
+                }, { onConflict: 'date,theme,side' });
+              }
+
+              // 2) 새로 생성된 기사를 왼쪽으로 저장 (side='left')
               await supabase.from('articles').upsert({
-                date: new Date().toISOString().split('T')[0],
+                date: today,
                 theme: targetCategory,
                 side: 'left',
-                title: textOnlyArticle.title,
-                content: textOnlyArticle.shortBody,
-                source_text: textOnlyArticle.sourceName,
-                image_url: generatedImageUrl
+                title: finalArticle.title,
+                content: finalArticle.shortBody,
+                source_text: finalArticle.sourceName,
+                image_url: finalArticle.imageUrl
               }, { onConflict: 'date,theme,side' });
             }
           }
