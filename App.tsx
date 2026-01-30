@@ -616,10 +616,22 @@ const App: React.FC = () => {
 
         if (data && data.length > 0) {
           setArticles(prev => {
-            const nextArticles = [...prev];
+            const articlesMap: Record<string, Article[]> = {};
+            // Group existing default articles by category to preserve base data
+            prev.forEach(a => {
+              if (!articlesMap[a.category]) articlesMap[a.category] = [];
+              articlesMap[a.category].push(a);
+            });
+
             data.forEach((row: any) => {
+              const category = row.theme as string;
+              if (!articlesMap[category]) {
+                const defaults = ARTICLES_DATA.filter(d => d.category === category);
+                articlesMap[category] = defaults.length > 0 ? [...defaults] : [];
+              }
+
               const mapped: Article = {
-                category: row.theme as any,
+                category: category as any,
                 title: row.title,
                 lead: '',
                 shortBody: row.content,
@@ -632,7 +644,6 @@ const App: React.FC = () => {
                 imageUrl: row.image_url
               };
 
-              // side 값에 따라 인덱스 매핑 (p1_left=0, p1_right=1, p2_left=2, p2_right=3)
               const side = row.side;
               let localIdx = -1;
               if (side === 'p1_left' || side === 'left') localIdx = 0;
@@ -640,25 +651,16 @@ const App: React.FC = () => {
               else if (side === 'p2_left') localIdx = 2;
               else if (side === 'p2_right') localIdx = 3;
 
-              if (localIdx === -1) return;
-
-              const indices = nextArticles
-                .map((a, i) => a.category === mapped.category ? i : -1)
-                .filter(i => i !== -1);
-
-              if (indices[localIdx] !== undefined) {
-                nextArticles[indices[localIdx]] = mapped;
-              } else {
-                // 비어있는 곳 채우기 (데이터 순서 보정)
-                const categoryArticles = nextArticles.filter(a => a.category === mapped.category);
-                if (categoryArticles.length < localIdx) {
-                    // 중간에 구멍이 난 경우 패딩은 하지 않음 (트리거가 보장한다고 가정)
+              if (localIdx !== -1) {
+                // Ensure array has enough space without nulls
+                while (articlesMap[category].length <= localIdx) {
+                    const fallback = ARTICLES_DATA.find(d => d.category === category) || ARTICLES_DATA[0];
+                    articlesMap[category].push({ ...fallback });
                 }
-                nextArticles.push(mapped);
+                articlesMap[category][localIdx] = mapped;
               }
             });
-            // 카테고리별로 정렬 보장 필요 시 로직 추가 가능
-            return nextArticles;
+            return Object.values(articlesMap).flat();
           });
         }
       } catch (err) {
@@ -674,7 +676,7 @@ const App: React.FC = () => {
     CATEGORIES.forEach(cat => {
       const filtered = articles.filter(a => a.category === cat);
       
-      // Page 1 Spread
+      // Page 1 Spread (Always show)
       spreads.push({
         category: cat,
         articles: [
@@ -683,13 +685,13 @@ const App: React.FC = () => {
         ]
       });
 
-      // Page 2 Spread (only if more than 2 articles exist)
-      if (filtered.length > 2) {
+      // Page 2 Spread (only if more than 2 articles exist in slot 2 or 3)
+      if (filtered.length > 2 && (filtered[2] || filtered[3])) {
         spreads.push({
           category: cat,
           articles: [
             filtered[2],
-            filtered[3] // filtered[3] can be undefined
+            filtered[3] // Might be undefined
           ]
         });
       }
@@ -730,7 +732,6 @@ const App: React.FC = () => {
       let retries = 0;
       const MAX_RETRIES = 2;
 
-      // 단계 1: 텍스트 생성 + 카테고리 자동 분류
       while (retries <= MAX_RETRIES) {
         const textResponse = await ai.models.generateContent({
           model: 'gemini-3-pro-preview',
@@ -774,11 +775,12 @@ const App: React.FC = () => {
 
       const targetCategory = (generatedData?.category as any) || CATEGORIES[0];
 
-      // 기존 4칸 캡처
+      // 기존 4개 슬롯 기사 캡처
       const sameCategoryArticles = articles.filter(a => a.category === targetCategory);
-      const prev1L = sameCategoryArticles[0] || null;
-      const prev1R = sameCategoryArticles[1] || null;
-      const prev2L = sameCategoryArticles[2] || null;
+      const prev_p1_left = sameCategoryArticles[0] || null;
+      const prev_p1_right = sameCategoryArticles[1] || null;
+      const prev_p2_left = sameCategoryArticles[2] || null;
+      const prev_p2_right = sameCategoryArticles[3] || null;
 
       // 텍스트 기사 객체 선행 생성 (이미지 없음)
       const textOnlyArticle: Article = {
@@ -799,11 +801,18 @@ const App: React.FC = () => {
       setArticles(prev => {
         const otherCategories = prev.filter(a => a.category !== targetCategory);
         
-        // p1_left = new, p1_right = old p1_L, p2_left = old p1_R, p2_right = old p2_L
-        const updatedSameCategory = [textOnlyArticle];
-        if (prev1L) updatedSameCategory.push(prev1L);
-        if (prev1R) updatedSameCategory.push(prev1R);
-        if (prev2L) updatedSameCategory.push(prev2L);
+        // p1_left  = new
+        // p1_right = prev_p1_left || prev_p1_right
+        // p2_left  = prev_p1_right || prev_p2_left
+        // p2_right = prev_p2_left || prev_p2_right
+        const updatedSameCategory: Article[] = [textOnlyArticle];
+        const next_p1_right = prev_p1_left || prev_p1_right;
+        const next_p2_left = prev_p1_right || prev_p2_left;
+        const next_p2_right = prev_p2_left || prev_p2_right;
+
+        if (next_p1_right) updatedSameCategory.push(next_p1_right);
+        if (next_p2_left) updatedSameCategory.push(next_p2_left);
+        if (next_p2_right) updatedSameCategory.push(next_p2_right);
 
         return [...updatedSameCategory, ...otherCategories];
       });
@@ -849,7 +858,7 @@ const App: React.FC = () => {
             if (supabase) {
               const today = new Date().toISOString().split('T')[0];
               const upsertData = async (article: Article, side: string) => {
-                await supabase.from('articles').upsert({
+                const { error } = await supabase.from('articles').upsert({
                   date: today,
                   theme: targetCategory,
                   side: side,
@@ -858,12 +867,18 @@ const App: React.FC = () => {
                   source_text: article.sourceName,
                   image_url: article.imageUrl
                 }, { onConflict: 'date,theme,side' });
+                if (error) console.error(`Supabase upsert error (${side}):`, error);
               };
 
-              // 역순으로 upsert (p2_right -> p2_left -> p1_right -> p1_left)
-              if (prev2L) await upsertData(prev2L, 'p2_right');
-              if (prev1R) await upsertData(prev1R, 'p2_left');
-              if (prev1L) await upsertData(prev1L, 'p1_right');
+              // Shifted 슬롯 계산
+              const final_p1_right = prev_p1_left || prev_p1_right;
+              const final_p2_left = prev_p1_right || prev_p2_left;
+              const final_p2_right = prev_p2_left || prev_p2_right;
+
+              // 순서: p2_right -> p2_left -> p1_right -> p1_left
+              if (final_p2_right) await upsertData(final_p2_right, 'p2_right');
+              if (final_p2_left) await upsertData(final_p2_left, 'p2_left');
+              if (final_p1_right) await upsertData(final_p1_right, 'p1_right');
               await upsertData(finalArticle, 'p1_left');
             }
           }
